@@ -1,13 +1,65 @@
-# Lab 1 — Test Plan and Evidence  (fill this in)
+# Lab 1 - Test Plan and Evidence
 
-All test files live under server/tests/lab-01/ and client/tests/lab-01/.
+All automated tests are stored under `client/tests/lab-01/` or `server/tests/lab-01/`.
 
-| # | Tool | Test | Result |
-|---|------|------|--------|
-| 1 | Supertest | GET /api/health returns 200, status=ok | |
-| 2 | Supertest | GET /api/categories returns 4 seeded categories in id order | |
-| 3 | Vitest | Heading renders | |
-| 4 | Vitest | Success state shows Online + category list | |
-| 5 | Vitest | Error state shows Offline + message | |
+## Test inventory
 
-Paste your passing terminal output / screenshot below.
+| ID | Test file | Tool | Test description | Final result |
+|---|---|---|---|---|
+| API-01 | `server/tests/lab-01/health.test.ts` | Supertest + Vitest | `GET /api/health` returns HTTP 200 and the required JSON. | Passed |
+| API-02 | `server/tests/lab-01/categories.test.ts` | Supertest + Vitest | `GET /api/categories` returns the four seeded categories in ID order. | Passed |
+| API-03 | `server/tests/lab-01/categories.test.ts` | Supertest + Vitest | A database failure returns HTTP 500 without exposing internal details. | Passed |
+| UI-01 | `client/tests/lab-01/App.test.tsx` | Testing Library + Vitest | The TokTickIT heading renders. | Passed |
+| UI-02 | `client/tests/lab-01/App.test.tsx` | Testing Library + Vitest | Clicking Check System displays the loading state and disables the button. | Passed |
+| UI-03 | `client/tests/lab-01/App.test.tsx` | Testing Library + Vitest | An API failure displays Offline and a useful error message. | Passed |
+| UI-04 | `client/tests/lab-01/App.test.tsx` | Testing Library + Vitest | A successful request displays Online and all four API-provided categories. | Passed |
+
+## Clean-checkout verification
+
+Verification was performed on 16 August 2026 using the final merged `lab1-staging` commit `a5742fd`, a clean dependency installation, and a new PostgreSQL 18 database.
+
+Database preparation:
+
+```text
+1 migration found in prisma/migrations
+Applying migration `20260815163000_init`
+All migrations have been successfully applied.
+
+Seed run 1: Seeded 4 IT request categories.
+Seed run 2: Seeded 4 IT request categories.
+```
+
+Server test output:
+
+```text
+Test Files  2 passed (2)
+Tests       3 passed (3)
+```
+
+Client test output:
+
+```text
+Test Files  1 passed (1)
+Tests       4 passed (4)
+```
+
+Production builds:
+
+```text
+Server: npm run build - passed
+Client: npm run build - passed
+```
+
+Direct HTTP verification:
+
+```text
+GET /api/health
+status: ok
+service: TokTickIT API
+
+GET /api/categories
+count: 4
+Account and Access, Hardware, Software, Network
+```
+
+After the release PR is merged, run the same commands on `main` and include the terminal output or screenshots in the final PDF.
