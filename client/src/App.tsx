@@ -1,14 +1,11 @@
 import { useState } from "react";
 import { checkSystem, Category } from "./api.js";
 
-// Issue 2 establishes these UI states. Issue 4 will extend the success state
-// with the category list.
 type UiState = "idle" | "loading" | "success" | "error";
 
 export default function App() {
   const [state, setState] = useState<UiState>("idle");
   const [categories, setCategories] = useState<Category[]>([]);
-  void categories;
 
   async function handleCheck() {
     setState("loading");
@@ -40,9 +37,24 @@ export default function App() {
       )}
 
       {state === "success" && (
-        <div className="alert alert-success mt-4" role="status">
-          <strong>System Status:</strong> Online
-        </div>
+        <>
+          <div className="alert alert-success mt-4" role="status">
+            <strong>System Status:</strong> Online
+          </div>
+
+          <section aria-labelledby="category-heading">
+            <h2 id="category-heading" className="h5 mt-4">
+              IT Request Categories
+            </h2>
+            <ul className="list-group">
+              {categories.map((category) => (
+                <li className="list-group-item" key={category.id}>
+                  {category.name}
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
       )}
 
       {state === "error" && (
@@ -51,8 +63,6 @@ export default function App() {
           <p className="mb-0">Unable to connect to TokTickIT API</p>
         </div>
       )}
-
-      {/* TODO(Issue 4): render the categories returned by checkSystem(). */}
     </div>
   );
 }

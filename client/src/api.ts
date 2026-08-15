@@ -17,6 +17,13 @@ interface HealthResponse {
   service: string;
 }
 
+function isCategory(value: unknown): value is Category {
+  if (typeof value !== "object" || value === null) return false;
+
+  const category = value as Record<string, unknown>;
+  return typeof category.id === "number" && typeof category.name === "string";
+}
+
 export async function checkSystem(): Promise<SystemStatus> {
   const response = await fetch(`${API_URL}/api/health`);
 
@@ -30,6 +37,17 @@ export async function checkSystem(): Promise<SystemStatus> {
     throw new Error("TokTickIT API returned an unexpected health response");
   }
 
-  // Issue 4 will extend this request with categories from PostgreSQL.
-  return { online: true, categories: [] };
+  const categoriesResponse = await fetch(`${API_URL}/api/categories`);
+
+  if (!categoriesResponse.ok) {
+    throw new Error("TokTickIT API category request failed");
+  }
+
+  const categories = (await categoriesResponse.json()) as unknown;
+
+  if (!Array.isArray(categories) || !categories.every(isCategory)) {
+    throw new Error("TokTickIT API returned an unexpected category response");
+  }
+
+  return { online: true, categories };
 }

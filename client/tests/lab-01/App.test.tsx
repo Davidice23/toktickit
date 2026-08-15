@@ -15,15 +15,15 @@ describe("App", () => {
     expect(screen.getByText(/TokTickIT/i)).toBeInTheDocument();
   });
 
-  it("shows Online when the health check succeeds", async () => {
-    vi.spyOn(api, "checkSystem").mockResolvedValue({ online: true, categories: [] });
+  it("shows a loading state while checking the system", async () => {
+    vi.spyOn(api, "checkSystem").mockReturnValue(new Promise(() => undefined));
     const user = userEvent.setup();
 
     render(<App />);
     await user.click(screen.getByRole("button", { name: /check system/i }));
 
-    expect(await screen.findByText(/system status:/i)).toBeInTheDocument();
-    expect(screen.getByText("Online")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/checking TokTickIT API/i);
+    expect(screen.getByRole("button", { name: /loading/i })).toBeDisabled();
   });
 
   it("shows an Offline error message when the API is unavailable", async () => {
@@ -38,6 +38,28 @@ describe("App", () => {
     expect(screen.getByText(/unable to connect to TokTickIT API/i)).toBeInTheDocument();
   });
 
-  // Issue 4 will verify that the seeded categories appear after success.
-  it.todo("shows Online and the seeded categories on success");
+  it("shows Online and the seeded categories on success", async () => {
+    vi.spyOn(api, "checkSystem").mockResolvedValue({
+      online: true,
+      categories: [
+        { id: 1, name: "Account and Access" },
+        { id: 2, name: "Hardware" },
+        { id: 3, name: "Software" },
+        { id: 4, name: "Network" },
+      ],
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: /check system/i }));
+
+    expect(await screen.findByText("Online")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /IT request categories/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Account and Access",
+      "Hardware",
+      "Software",
+      "Network",
+    ]);
+  });
 });
