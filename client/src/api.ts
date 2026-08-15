@@ -10,12 +10,26 @@ export interface SystemStatus {
   categories: Category[];
 }
 
-// Issue 2 + Issue 4 — call the backend.
-// Steps: fetch `${API_URL}/api/health`; if not ok, throw.
-//        then fetch `${API_URL}/api/categories`; if not ok, throw.
-//        return { online: true, categories }.
-// Throwing on failure lets the UI show a single Offline/error state.
+// Issue 2 checks the backend health endpoint. Issue 4 will extend the system
+// check with the categories request after the database work is available.
+interface HealthResponse {
+  status: string;
+  service: string;
+}
+
 export async function checkSystem(): Promise<SystemStatus> {
-  // TODO(Issue 2 & 4): implement the two fetch calls described above.
-  throw new Error("checkSystem not implemented yet");
+  const response = await fetch(`${API_URL}/api/health`);
+
+  if (!response.ok) {
+    throw new Error("TokTickIT API health check failed");
+  }
+
+  const health = (await response.json()) as HealthResponse;
+
+  if (health.status !== "ok" || health.service !== "TokTickIT API") {
+    throw new Error("TokTickIT API returned an unexpected health response");
+  }
+
+  // Issue 4 will extend this request with categories from PostgreSQL.
+  return { online: true, categories: [] };
 }
