@@ -1,13 +1,13 @@
 # TokTickIT
 
 TokTickIT is an IT service desk application developed for CPE334 Software
-Engineering in the Age of AI Agents. Lab 1 establishes a small full-stack
-vertical slice that connects a React user interface to an Express REST API and,
-in later Lab 1 issues, to PostgreSQL through Prisma.
+Engineering in the Age of AI Agents. Lab 1 delivers a small full-stack vertical
+slice that connects a React user interface to an Express REST API and a
+PostgreSQL database through Prisma.
 
 ## Lab 1 goal
 
-The completed Lab 1 application will let a user select **Check System** and see:
+The completed Lab 1 application lets a user select **Check System** and see:
 
 - whether the TokTickIT API is online;
 - the supported IT request categories stored in PostgreSQL;
@@ -96,8 +96,8 @@ commit either `.env` file.
 
 ## Database preparation
 
-The Category model, migration, and seed are implemented in Lab 1 Issue 3. Once
-that issue is available, run these commands from `server/`:
+The Category model, migration, and idempotent seed are included. Run these
+commands from `server/`:
 
 ```powershell
 npm run prisma:migrate -- --name init
@@ -138,13 +138,13 @@ npm run build
 npm test
 ```
 
-The starter scaffold intentionally contains failing or pending tests for later
-Lab 1 issues. Each feature issue must replace the relevant stub or pending test
-and make its acceptance tests pass.
+The final Lab 1 release contains seven passing automated tests: three server
+tests and four client tests. The commands above also verify both production
+builds.
 
 ## Lab 1 API contracts
 
-The following endpoints are delivered incrementally:
+The final Lab 1 release provides these endpoints:
 
 - `GET /api/health` - implemented in Issue 2
 - `GET /api/categories` - implemented in Issue 4 after the Issue 3 database work

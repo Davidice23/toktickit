@@ -14,9 +14,12 @@ All automated tests are stored under `client/tests/lab-01/` or `server/tests/lab
 | UI-03 | `client/tests/lab-01/App.test.tsx` | Testing Library + Vitest | An API failure displays Offline and a useful error message. | Passed |
 | UI-04 | `client/tests/lab-01/App.test.tsx` | Testing Library + Vitest | A successful request displays Online and all four API-provided categories. | Passed |
 
-## Clean-checkout verification
+## Final main-branch verification
 
-Verification was performed on 16 August 2026 using the final merged `lab1-staging` commit `a5742fd`, a clean dependency installation, and a new PostgreSQL 18 database.
+Verification was performed on 16 August 2026 using released `main` commit
+`47fb824`, a clean dependency installation, and an isolated PostgreSQL 18
+database. The later documentation-only evidence update does not change the
+application, database schema, or tests.
 
 Database preparation:
 
@@ -62,4 +65,5 @@ count: 4
 Account and Access, Hardware, Software, Network
 ```
 
-After the release PR is merged, run the same commands on `main` and include the terminal output or screenshots in the final PDF.
+All commands above passed on `main`. The final submission PDF includes copied
+output and browser screenshots for both the success and failure cases.
