@@ -12,10 +12,15 @@
 | [#6](https://github.com/Davidice23/toktickit/pull/6) | `feature/2-health-check` | Approved by `Sxr1n` | Confirmed the API contract, UI states, and test coverage; the category TODO was correctly deferred to Issue 4. |
 | [#7](https://github.com/Davidice23/toktickit/pull/7) | `feature/3-category-seed` | Approved by `Sxr1n` | "W! very good to understand" |
 | [#8](https://github.com/Davidice23/toktickit/pull/8) | `feature/4-category-list` | Approved by `Sxr1n` | "Excellent! let merge it" |
+| [#9](https://github.com/Davidice23/toktickit/pull/9) | `docs/lab1-evidence` | Approved by `Sxr1n` | Confirmed that the peer-review records, test results, PR links, AI-use prompts, and reflection were complete and consistent. |
+| [#10](https://github.com/Davidice23/toktickit/pull/10) | `lab1-staging` | Approved by `Sxr1n` | Confirmed that the complete Lab 1 release matched Issues #1-#4 and was ready to merge into `main`. |
 
 ### How I responded
 
-No changes were requested on these four Pull Requests. After each approval, I checked the PR scope and mergeability, reran the relevant build and automated tests, and merged the feature into `lab1-staging`. Before the final release, I also verified the merged staging code from a clean checkout with a new PostgreSQL database.
+No changes were requested on these Pull Requests. After each approval, I
+checked the PR scope and mergeability, reran the relevant build and automated
+tests, and merged through `lab1-staging`. Before and after the release, I also
+verified the integrated code with a clean PostgreSQL database.
 
 ## Pull Request I reviewed for my peer
 
