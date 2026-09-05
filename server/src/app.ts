@@ -1,5 +1,7 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
+import { createHash, randomUUID } from "node:crypto";
+import { RequestedPriority } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 
 // The Express app is exported separately from app.listen() (see index.ts) so
@@ -45,6 +47,127 @@ app.get("/api/requesters", async (req: Request, res: Response) => {
     res.status(200).json(requesters);
   } catch {
     res.status(500).json({ error: "Unable to load Development Requesters" });
+  }
+});
+
+const ticketDetailSelect = {
+  id: true,
+  ticketNumber: true,
+  requesterId: true,
+  categoryId: true,
+  relatedSystemId: true,
+  summary: true,
+  description: true,
+  requestedPriority: true,
+  currentStatus: true,
+  itPriority: true,
+  createdAt: true,
+  updatedAt: true,
+  requester: { select: { id: true, name: true, email: true } },
+  category: { select: { id: true, name: true } },
+  relatedSystem: { select: { id: true, name: true } },
+} as const;
+
+function positiveInteger(value: unknown): number | null {
+  if (typeof value === "number") return Number.isSafeInteger(value) && value > 0 ? value : null;
+  if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function normalizeText(value: unknown): string | null {
+  return typeof value === "string" ? value.trim() : null;
+}
+
+function validationError(res: Response, fields: Record<string, string>) {
+  return res.status(400).json({ error: "Validation failed", fields });
+}
+
+app.post("/api/tickets", async (req: Request, res: Response) => {
+  const requesterId = positiveInteger(req.header("X-Requester-Id"));
+  const submissionKey = normalizeText(req.header("Idempotency-Key"));
+  const body = req.body as Record<string, unknown>;
+  const fields: Record<string, string> = {};
+
+  if (!requesterId) fields.requesterId = "X-Requester-Id must be a positive integer";
+  if (!submissionKey || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionKey)) {
+    fields.idempotencyKey = "Idempotency-Key must be a UUID";
+  }
+
+  const categoryId = positiveInteger(body.categoryId);
+  const relatedSystemId = positiveInteger(body.relatedSystemId);
+  const summary = normalizeText(body.summary);
+  const description = normalizeText(body.description);
+  const requestedPriority = body.requestedPriority;
+  if (!categoryId) fields.categoryId = "Category is required";
+  if (!relatedSystemId) fields.relatedSystemId = "Related System is required";
+  if (!summary || summary.length < 5 || summary.length > 120) fields.summary = "Summary must contain 5-120 characters";
+  if (!description || description.length < 10 || description.length > 5000) fields.description = "Description must contain 10-5000 characters";
+  if (typeof requestedPriority !== "string" || !Object.values(RequestedPriority).includes(requestedPriority as RequestedPriority)) {
+    fields.requestedPriority = "Requested Priority must be LOW, MEDIUM, HIGH, or URGENT";
+  }
+  if (Object.keys(fields).length) return validationError(res, fields);
+
+  const validCategoryId = categoryId as number;
+  const validRelatedSystemId = relatedSystemId as number;
+  const validRequesterId = requesterId as number;
+  const validSummary = summary as string;
+  const validDescription = description as string;
+  const validSubmissionKey = submissionKey as string;
+
+  const canonicalPayload = JSON.stringify({ categoryId: validCategoryId, relatedSystemId: validRelatedSystemId, summary: validSummary, description: validDescription, requestedPriority });
+  const submissionHash = createHash("sha256").update(canonicalPayload).digest("hex");
+
+  try {
+    const prisma = getPrisma();
+    const requester = await prisma.requesterUser.findFirst({ where: { id: validRequesterId, isActive: true }, select: { id: true } });
+    if (!requester) return validationError(res, { requesterId: "Requester is missing or inactive" });
+
+    const [category, relatedSystem] = await Promise.all([
+      prisma.category.findFirst({ where: { id: validCategoryId, isActive: true }, select: { id: true } }),
+      prisma.relatedSystem.findFirst({ where: { id: validRelatedSystemId, isActive: true }, select: { id: true } }),
+    ]);
+    if (!category) fields.categoryId = "Category is missing or inactive";
+    if (!relatedSystem) fields.relatedSystemId = "Related System is missing or inactive";
+    if (Object.keys(fields).length) return validationError(res, fields);
+
+    const existing = await prisma.ticket.findUnique({
+      where: { requesterId_submissionKey: { requesterId: validRequesterId, submissionKey: validSubmissionKey } },
+      select: { submissionHash: true, id: true },
+    });
+    if (existing) {
+      if (existing.submissionHash !== submissionHash) return res.status(409).json({ error: "Idempotency-Key was already used with a different request" });
+      const replay = await prisma.ticket.findUnique({ where: { id: existing.id }, select: ticketDetailSelect });
+      res.setHeader("Idempotent-Replay", "true");
+      return res.status(200).json({ data: replay });
+    }
+
+    const ticket = await prisma.$transaction(async (tx) => {
+      const created = await tx.ticket.create({
+        data: {
+          ticketNumber: null,
+          submissionKey: validSubmissionKey,
+          submissionHash,
+          requesterId: validRequesterId,
+          categoryId: validCategoryId,
+          relatedSystemId: validRelatedSystemId,
+          summary: validSummary,
+          description: validDescription,
+          requestedPriority: requestedPriority as RequestedPriority,
+        },
+        select: { id: true },
+      });
+      return tx.ticket.update({
+        where: { id: created.id },
+        data: { ticketNumber: `TKT-${String(created.id).padStart(6, "0")}` },
+        select: ticketDetailSelect,
+      });
+    });
+    return res.status(201).json({ data: ticket });
+  } catch (error) {
+    const correlationId = randomUUID();
+    console.error(`[${correlationId}] ticket creation failed`, error);
+    return res.status(500).json({ error: "Unable to create Ticket", correlationId });
   }
 });
 
