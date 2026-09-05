@@ -10,10 +10,10 @@ afterAll(async () => { await prisma.ticket.delete({ where: { id: ticketId } }).c
 
 describe("Attachment lifecycle", () => {
   it("uploads, downloads, and soft-removes an owned attachment", async () => {
-    const upload = await request(app).post(`/api/tickets/${ticketId}/attachments`).set("X-Requester-Id", String(ownerId)).attach("files", Buffer.from("hello"), { filename: "hello.txt", contentType: "application/pdf" });
+    const upload = await request(app).post(`/api/tickets/${ticketId}/attachments`).set("X-Requester-Id", String(ownerId)).attach("files", Buffer.from("%PDF-1.4\nhello"), { filename: "hello.pdf", contentType: "application/pdf" });
     expect(upload.status).toBe(201); attachmentId = upload.body.data[0].id;
     const download = await request(app).get(`/api/tickets/${ticketId}/attachments/${attachmentId}/download`).set("X-Requester-Id", String(ownerId));
-    expect(download.status).toBe(200); expect(download.headers["content-disposition"]).toContain("hello.txt");
+    expect(download.status).toBe(200); expect(download.headers["content-disposition"]).toContain("hello.pdf");
     const removed = await request(app).delete(`/api/tickets/${ticketId}/attachments/${attachmentId}`).set("X-Requester-Id", String(ownerId)).send({ reason: "No longer needed" });
     expect(removed.status).toBe(200);
     expect((await request(app).get(`/api/tickets/${ticketId}/attachments/${attachmentId}/download`).set("X-Requester-Id", String(ownerId))).status).toBe(404);

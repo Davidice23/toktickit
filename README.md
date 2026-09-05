@@ -22,6 +22,16 @@ The completed Lab 1 application lets a user select **Check System** and see:
 - a loading state while requests are running; and
 - a useful error message when the API or database is unavailable.
 
+## Lab 2 status
+
+Lab 2 extends the slice with a Development Requester context, owned Ticket
+creation/list/detail, and an Attachment lifecycle (upload, owned download,
+and soft removal). The integration branch is `lab2-staging`; feature work is
+completed through Issue #22. Issue #23 tracks final E2E, responsive screenshots,
+documentation, and the release PR to `main`. See
+[`docs/lab-02/release-readiness.md`](docs/lab-02/release-readiness.md) for the
+current evidence and remaining release checks.
+
 ## Technology stack
 
 - Client: React, TypeScript, Vite, and Bootstrap
