@@ -23,6 +23,23 @@ function safeOriginalName(value: string): string | null {
   return name && name.length <= 255 && !/[\u0000-\u001f]/.test(name) ? name : null;
 }
 
+function hasValidSignature(file: Express.Multer.File): boolean {
+  const bytes = file.buffer;
+  if (file.mimetype === "application/pdf") return bytes.subarray(0, 5).toString("ascii") === "%PDF-";
+  if (file.mimetype === "image/png") return bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  if (file.mimetype === "image/jpeg") return bytes.subarray(0, 3).equals(Buffer.from([255, 216, 255]));
+  if (file.mimetype === "image/webp") return bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP";
+  return false;
+}
+
+function parseAttachmentUpload(req: Request, res: Response, next: () => void) {
+  upload.array("files", 5)(req, res, (error: unknown) => {
+    if (error instanceof multer.MulterError) return res.status(error.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({ error: "Attachment upload rejected" });
+    if (error) return res.status(400).json({ error: "Attachment upload rejected" });
+    return next();
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Issue 2 — API health check
 // Make the test in tests/lab-01/health.test.ts pass.
@@ -273,13 +290,14 @@ app.get("/api/tickets/:ticketId", async (req: Request, res: Response) => {
   }
 });
 
-app.post("/api/tickets/:ticketId/attachments", upload.array("files", 5), async (req: Request, res: Response) => {
+app.post("/api/tickets/:ticketId/attachments", parseAttachmentUpload, async (req: Request, res: Response) => {
   const requesterId = positiveInteger(req.header("X-Requester-Id"));
   const ticketId = positiveInteger(req.params.ticketId);
   if (!requesterId || !ticketId) return res.status(400).json({ error: "Invalid Requester or Ticket ID" });
   const files = (req.files as Express.Multer.File[] | undefined) ?? [];
   if (!files.length) return res.status(400).json({ error: "At least one file is required" });
   if (files.some((file) => !allowedAttachmentTypes.has(file.mimetype))) return res.status(400).json({ error: "Unsupported attachment type" });
+  if (files.some((file) => !file.size || !hasValidSignature(file))) return res.status(400).json({ error: "Attachment content does not match its declared type" });
   const names = files.map((file) => safeOriginalName(file.originalname));
   if (names.some((name) => !name)) return res.status(400).json({ error: "Unsafe attachment filename" });
   const prisma = getPrisma();
