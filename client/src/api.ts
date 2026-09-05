@@ -10,6 +10,28 @@ export interface SystemStatus {
   categories: Category[];
 }
 
+export interface Requester {
+  id: number;
+  name: string;
+  isActive: boolean;
+}
+
+function isRequester(value: unknown): value is Requester {
+  if (typeof value !== "object" || value === null) return false;
+  const requester = value as Record<string, unknown>;
+  return typeof requester.id === "number" && typeof requester.name === "string" && typeof requester.isActive === "boolean";
+}
+
+export async function fetchRequesters(): Promise<Requester[]> {
+  const response = await fetch(`${API_URL}/api/requesters?active=true`);
+  if (!response.ok) throw new Error("Unable to load Development Requesters");
+  const requesters = (await response.json()) as unknown;
+  if (!Array.isArray(requesters) || !requesters.every(isRequester)) {
+    throw new Error("Unexpected Development Requester response");
+  }
+  return requesters;
+}
+
 // Issue 2 checks the backend health endpoint. Issue 4 will extend the system
 // check with the categories request after the database work is available.
 interface HealthResponse {

@@ -39,6 +39,15 @@ h1, h2 { color: var(--color-text); }
 h1 { margin: 0; font-size: clamp(1.5rem, 2.5vw, 1.875rem); }
 h2 { margin-top: 32px; font-size: 1.25rem; }
 .page-intro { max-width: 60ch; margin: 8px 0 24px; color: var(--color-text-muted); }
+.helper-text { color: var(--color-text-muted); }
+.requester-card { margin: 24px 0; padding: 20px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-pale-green); }
+.requester-card h2 { margin-top: 0; }
+.requester-form { display: grid; gap: 10px; max-width: 560px; }
+.requester-form label { font-weight: 600; }
+.requester-form select { min-height: 44px; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font: inherit; }
+.btn-secondary-green { min-height: 44px; padding: 10px 18px; border: 1px solid var(--color-secondary); border-radius: 8px; color: var(--color-secondary); background: var(--color-surface); font-weight: 600; }
+.retry-button { margin-left: 12px; border: 0; color: var(--color-error); background: transparent; text-decoration: underline; font: inherit; font-weight: 600; cursor: pointer; }
+.state-warning { border-color: #8a4b08; color: #8a4b08; background: #fff4d6; }
 .btn-primary-green { min-height: 44px; padding: 10px 18px; border: 1px solid var(--color-primary); border-radius: 8px; color: #fff; background: var(--color-primary); font-weight: 600; }
 .btn-primary-green:hover:not(:disabled) { background: var(--color-primary-hover); }
 .btn-primary-green:disabled { cursor: not-allowed; opacity: .65; }
