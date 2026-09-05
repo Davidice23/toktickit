@@ -20,12 +20,20 @@ export interface RelatedSystem { id: number; name: string; isActive: boolean }
 export interface CreatedTicket { id: number; ticketNumber: string; requesterId: number; summary: string; currentStatus: string; createdAt: string }
 export interface TicketSummary extends CreatedTicket { category: { id: number; name: string }; relatedSystem: { id: number; name: string }; requestedPriority: string; updatedAt: string }
 export interface TicketList { data: TicketSummary[]; meta: { page: number; pageSize: number; totalItems: number; totalPages: number; hasPreviousPage: boolean; hasNextPage: boolean } }
+export interface TicketDetail extends TicketSummary { categoryId: number; relatedSystemId: number; description: string; itPriority: string | null; requester: { id: number; name: string; email: string }; attachments: Array<{ id: number; originalName: string; mimeType: string; sizeBytes: number; uploadedAt: string; removedAt: string | null; removedReason: string | null }> }
 
 export async function fetchTickets(requesterId: number, params: URLSearchParams): Promise<TicketList> {
   const response = await fetch(`${API_URL}/api/tickets?${params.toString()}`, { headers: { "X-Requester-Id": String(requesterId) } });
   const payload = await response.json() as TicketList & { error?: string };
   if (!response.ok || !payload.meta || !Array.isArray(payload.data)) throw new Error(payload.error ?? "Unable to load Tickets");
   return payload;
+}
+
+export async function fetchTicketDetail(requesterId: number, ticketId: number): Promise<TicketDetail> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}`, { headers: { "X-Requester-Id": String(requesterId) } });
+  const payload = await response.json() as { data?: TicketDetail; error?: string };
+  if (!response.ok || !payload.data) throw new Error(payload.error ?? "Unable to load Ticket");
+  return payload.data;
 }
 
 export async function fetchCategories(): Promise<Category[]> {

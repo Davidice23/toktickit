@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { checkSystem, Category, fetchRequesters, Requester } from "./api.js";
 import CreateTicket from "./CreateTicket.js";
 import MyTickets from "./MyTickets.js";
+import TicketDetail from "./TicketDetail.js";
 
 type UiState = "idle" | "loading" | "success" | "error";
 type RequesterUiState = "idle" | "loading" | "ready" | "empty" | "error";
@@ -15,6 +16,7 @@ export default function App() {
   const [selectedRequester, setSelectedRequester] = useState<Requester | null>(null);
   const [createMode, setCreateMode] = useState(false);
   const [selectedId, setSelectedId] = useState("");
+  const [detailTicketId, setDetailTicketId] = useState<number | null>(null);
 
   useEffect(() => {
     const storedId = localStorage.getItem("toktickit.devRequesterId");
@@ -82,8 +84,8 @@ export default function App() {
           Menu
         </button>
         <nav id="primary-navigation" className={`primary-navigation${menuOpen ? " is-open" : ""}`} aria-label="Primary navigation">
-          <a className={`nav-link${!createMode ? " is-active" : ""}`} href="#my-tickets" aria-current={!createMode ? "page" : undefined} onClick={() => { setCreateMode(false); setMenuOpen(false); }}>My Tickets</a>
-          <a className={`nav-link${createMode ? " is-active" : ""}`} href="#create-ticket" aria-current={createMode ? "page" : undefined} onClick={() => { setCreateMode(true); setMenuOpen(false); }}>Create Ticket</a>
+          <a className={`nav-link${!createMode ? " is-active" : ""}`} href="#my-tickets" aria-current={!createMode ? "page" : undefined} onClick={() => { setCreateMode(false); setDetailTicketId(null); setMenuOpen(false); }}>My Tickets</a>
+          <a className={`nav-link${createMode ? " is-active" : ""}`} href="#create-ticket" aria-current={createMode ? "page" : undefined} onClick={() => { setCreateMode(true); setDetailTicketId(null); setMenuOpen(false); }}>Create Ticket</a>
           <span className="requester-context" aria-label="Current Requester">Requester: {selectedRequester?.name ?? "Not selected"}</span>
           <button className="nav-action" type="button" onClick={() => { setMenuOpen(false); setCreateMode(false); changeRequester(); }}>Change Requester</button>
         </nav>
@@ -96,7 +98,8 @@ export default function App() {
           <p className="page-intro">A clear, responsive workspace for creating and tracking your IT requests.</p>
 
           {selectedRequester && createMode && <CreateTicket requesterId={selectedRequester.id} />}
-          {selectedRequester && !createMode && <MyTickets requesterId={selectedRequester.id} />}
+          {selectedRequester && !createMode && detailTicketId === null && <MyTickets requesterId={selectedRequester.id} onOpen={setDetailTicketId} />}
+          {selectedRequester && !createMode && detailTicketId !== null && <TicketDetail requesterId={selectedRequester.id} ticketId={detailTicketId} onBack={() => setDetailTicketId(null)} />}
 
           {!selectedRequester && (
             <section className="requester-card" aria-labelledby="requester-heading">
