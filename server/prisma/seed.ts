@@ -1,27 +1,18 @@
 import { getPrisma } from "../src/prisma.js";
+import {
+  CATEGORY_NAMES,
+  RELATED_SYSTEM_NAMES,
+  REQUESTERS,
+  seedReferenceData,
+} from "./seed-data.js";
 
-// Issue 3 — seed the four supported categories.
-// The four names are: Account and Access, Hardware, Software, Network.
-// Requirement: running the seed twice must NOT create duplicates.
-// Hint: prisma.category.upsert({ where:{name}, update:{}, create:{name} }).
 async function main() {
   const prisma = getPrisma();
-  const categoryNames = [
-    "Account and Access",
-    "Hardware",
-    "Software",
-    "Network",
-  ];
+  await seedReferenceData(prisma);
 
-  for (const name of categoryNames) {
-    await prisma.category.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    });
-  }
-
-  console.log(`Seeded ${categoryNames.length} IT request categories.`);
+  console.log(
+    `Seeded ${CATEGORY_NAMES.length} categories, ${RELATED_SYSTEM_NAMES.length} related systems, and ${REQUESTERS.length} requesters.`,
+  );
 }
 
 main()
