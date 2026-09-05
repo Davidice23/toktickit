@@ -185,4 +185,56 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
   }
 });
 
+app.get("/api/tickets", async (req: Request, res: Response) => {
+  const requesterId = positiveInteger(req.header("X-Requester-Id"));
+  const allowedSorts = ["updatedAt", "ticketDate", "ticketNumber", "summary"];
+  const sortBy = typeof req.query.sortBy === "string" ? req.query.sortBy : "updatedAt";
+  const sortDirection = typeof req.query.sortDirection === "string" ? req.query.sortDirection : "desc";
+  const page = req.query.page === undefined ? 1 : positiveInteger(req.query.page);
+  const pageSizeValue = req.query.pageSize === undefined ? 10 : positiveInteger(req.query.pageSize);
+  const pageSizes = [10, 20, 50];
+  const fields: Record<string, string> = {};
+  if (!requesterId) fields.requesterId = "X-Requester-Id must be a positive integer";
+  if (!allowedSorts.includes(sortBy)) fields.sortBy = "Unsupported sort field";
+  if (!["asc", "desc"].includes(sortDirection)) fields.sortDirection = "Sort direction must be asc or desc";
+  if (!page) fields.page = "Page must be a positive integer";
+  if (!pageSizeValue || !pageSizes.includes(pageSizeValue)) fields.pageSize = "Page size must be 10, 20, or 50";
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  if (search.length > 120) fields.search = "Search must contain at most 120 characters";
+  const categoryId = req.query.categoryId === undefined ? null : positiveInteger(req.query.categoryId);
+  const relatedSystemId = req.query.relatedSystemId === undefined ? null : positiveInteger(req.query.relatedSystemId);
+  if (req.query.categoryId !== undefined && !categoryId) fields.categoryId = "Category ID must be a positive integer";
+  if (req.query.relatedSystemId !== undefined && !relatedSystemId) fields.relatedSystemId = "Related System ID must be a positive integer";
+  const priority = req.query.requestedPriority;
+  if (priority !== undefined && !Object.values(RequestedPriority).includes(priority as RequestedPriority)) fields.requestedPriority = "Unsupported priority";
+  if (req.query.status !== undefined && req.query.status !== "NEW") fields.status = "Unsupported status";
+  if (Object.keys(fields).length) return validationError(res, fields);
+
+  try {
+    const where: any = { requesterId: requesterId as number };
+    if (search) where.OR = [
+      { ticketNumber: { contains: search, mode: "insensitive" } },
+      { summary: { contains: search, mode: "insensitive" } },
+      { description: { contains: search, mode: "insensitive" } },
+    ];
+    if (categoryId) where.categoryId = categoryId;
+    if (relatedSystemId) where.relatedSystemId = relatedSystemId;
+    if (priority) where.requestedPriority = priority;
+    if (req.query.status) where.currentStatus = req.query.status;
+    const orderField = sortBy === "ticketDate" ? "createdAt" : sortBy;
+    const orderBy: any[] = [{ [orderField]: sortDirection }, { id: "desc" }];
+    const prisma = getPrisma();
+    const [totalItems, data] = await Promise.all([
+      prisma.ticket.count({ where }),
+      prisma.ticket.findMany({ where, orderBy, skip: ((page as number) - 1) * (pageSizeValue as number), take: pageSizeValue as number, select: ticketDetailSelect }),
+    ]);
+    const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / (pageSizeValue as number));
+    return res.status(200).json({ data, meta: { page, pageSize: pageSizeValue, totalItems, totalPages, hasPreviousPage: (page as number) > 1, hasNextPage: (page as number) < totalPages } });
+  } catch (error) {
+    const correlationId = randomUUID();
+    console.error(`[${correlationId}] ticket list failed`, error);
+    return res.status(500).json({ error: "Unable to load Tickets", correlationId });
+  }
+});
+
 export default app;

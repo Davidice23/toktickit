@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { checkSystem, Category, fetchRequesters, Requester } from "./api.js";
 import CreateTicket from "./CreateTicket.js";
+import MyTickets from "./MyTickets.js";
 
 type UiState = "idle" | "loading" | "success" | "error";
 type RequesterUiState = "idle" | "loading" | "ready" | "empty" | "error";
@@ -95,6 +96,7 @@ export default function App() {
           <p className="page-intro">A clear, responsive workspace for creating and tracking your IT requests.</p>
 
           {selectedRequester && createMode && <CreateTicket requesterId={selectedRequester.id} />}
+          {selectedRequester && !createMode && <MyTickets requesterId={selectedRequester.id} />}
 
           {!selectedRequester && (
             <section className="requester-card" aria-labelledby="requester-heading">

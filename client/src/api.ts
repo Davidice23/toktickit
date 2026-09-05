@@ -18,6 +18,15 @@ export interface Requester {
 
 export interface RelatedSystem { id: number; name: string; isActive: boolean }
 export interface CreatedTicket { id: number; ticketNumber: string; requesterId: number; summary: string; currentStatus: string; createdAt: string }
+export interface TicketSummary extends CreatedTicket { category: { id: number; name: string }; relatedSystem: { id: number; name: string }; requestedPriority: string; updatedAt: string }
+export interface TicketList { data: TicketSummary[]; meta: { page: number; pageSize: number; totalItems: number; totalPages: number; hasPreviousPage: boolean; hasNextPage: boolean } }
+
+export async function fetchTickets(requesterId: number, params: URLSearchParams): Promise<TicketList> {
+  const response = await fetch(`${API_URL}/api/tickets?${params.toString()}`, { headers: { "X-Requester-Id": String(requesterId) } });
+  const payload = await response.json() as TicketList & { error?: string };
+  if (!response.ok || !payload.meta || !Array.isArray(payload.data)) throw new Error(payload.error ?? "Unable to load Tickets");
+  return payload;
+}
 
 export async function fetchCategories(): Promise<Category[]> {
   const response = await fetch(`${API_URL}/api/categories?active=true`);
