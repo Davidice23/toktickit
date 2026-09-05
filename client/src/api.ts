@@ -16,6 +16,40 @@ export interface Requester {
   isActive: boolean;
 }
 
+export interface RelatedSystem { id: number; name: string; isActive: boolean }
+export interface CreatedTicket { id: number; ticketNumber: string; requesterId: number; summary: string; currentStatus: string; createdAt: string }
+
+export async function fetchCategories(): Promise<Category[]> {
+  const response = await fetch(`${API_URL}/api/categories?active=true`);
+  if (!response.ok) throw new Error("Unable to load Categories");
+  const values = (await response.json()) as unknown;
+  if (!Array.isArray(values) || !values.every(isCategory)) throw new Error("Unexpected Category response");
+  return values;
+}
+
+export async function fetchRelatedSystems(): Promise<RelatedSystem[]> {
+  const response = await fetch(`${API_URL}/api/related-systems?active=true`);
+  if (!response.ok) throw new Error("Unable to load Related Systems");
+  const values = (await response.json()) as unknown;
+  if (!Array.isArray(values) || !values.every((value) => typeof value === "object" && value !== null && typeof (value as Record<string, unknown>).id === "number" && typeof (value as Record<string, unknown>).name === "string")) throw new Error("Unexpected Related System response");
+  return values as RelatedSystem[];
+}
+
+export async function createTicket(requesterId: number, body: { categoryId: number; relatedSystemId: number; summary: string; description: string; requestedPriority: string }, idempotencyKey: string): Promise<CreatedTicket> {
+  const response = await fetch(`${API_URL}/api/tickets`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Requester-Id": String(requesterId), "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json() as { data?: CreatedTicket; error?: string; fields?: Record<string, string> };
+  if (!response.ok || !payload.data) {
+    const error = new Error(payload.error ?? "Unable to create Ticket") as Error & { fields?: Record<string, string> };
+    error.fields = payload.fields;
+    throw error;
+  }
+  return payload.data;
+}
+
 function isRequester(value: unknown): value is Requester {
   if (typeof value !== "object" || value === null) return false;
   const requester = value as Record<string, unknown>;

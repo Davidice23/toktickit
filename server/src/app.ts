@@ -50,6 +50,20 @@ app.get("/api/requesters", async (req: Request, res: Response) => {
   }
 });
 
+app.get("/api/related-systems", async (req: Request, res: Response) => {
+  try {
+    const active = req.query.active === undefined || req.query.active === "true";
+    const systems = await getPrisma().relatedSystem.findMany({
+      where: active ? { isActive: true } : undefined,
+      select: { id: true, name: true, isActive: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    });
+    res.status(200).json(systems);
+  } catch {
+    res.status(500).json({ error: "Unable to load Related Systems" });
+  }
+});
+
 const ticketDetailSelect = {
   id: true,
   ticketNumber: true,

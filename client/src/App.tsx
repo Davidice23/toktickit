@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { checkSystem, Category, fetchRequesters, Requester } from "./api.js";
+import CreateTicket from "./CreateTicket.js";
 
 type UiState = "idle" | "loading" | "success" | "error";
 type RequesterUiState = "idle" | "loading" | "ready" | "empty" | "error";
@@ -11,6 +12,7 @@ export default function App() {
   const [requesterUiState, setRequesterUiState] = useState<RequesterUiState>("idle");
   const [requesters, setRequesters] = useState<Requester[]>([]);
   const [selectedRequester, setSelectedRequester] = useState<Requester | null>(null);
+  const [createMode, setCreateMode] = useState(false);
   const [selectedId, setSelectedId] = useState("");
 
   useEffect(() => {
@@ -79,10 +81,10 @@ export default function App() {
           Menu
         </button>
         <nav id="primary-navigation" className={`primary-navigation${menuOpen ? " is-open" : ""}`} aria-label="Primary navigation">
-          <a className="nav-link is-active" href="#my-tickets" aria-current="page" onClick={() => setMenuOpen(false)}>My Tickets</a>
-          <a className="nav-link" href="#create-ticket" onClick={() => setMenuOpen(false)}>Create Ticket</a>
+          <a className={`nav-link${!createMode ? " is-active" : ""}`} href="#my-tickets" aria-current={!createMode ? "page" : undefined} onClick={() => { setCreateMode(false); setMenuOpen(false); }}>My Tickets</a>
+          <a className={`nav-link${createMode ? " is-active" : ""}`} href="#create-ticket" aria-current={createMode ? "page" : undefined} onClick={() => { setCreateMode(true); setMenuOpen(false); }}>Create Ticket</a>
           <span className="requester-context" aria-label="Current Requester">Requester: {selectedRequester?.name ?? "Not selected"}</span>
-          <button className="nav-action" type="button" onClick={() => { setMenuOpen(false); changeRequester(); }}>Change Requester</button>
+          <button className="nav-action" type="button" onClick={() => { setMenuOpen(false); setCreateMode(false); changeRequester(); }}>Change Requester</button>
         </nav>
       </header>
 
@@ -91,6 +93,8 @@ export default function App() {
           <p className="eyebrow">IT Service Desk</p>
           <h1 id="page-title">Requester workspace</h1>
           <p className="page-intro">A clear, responsive workspace for creating and tracking your IT requests.</p>
+
+          {selectedRequester && createMode && <CreateTicket requesterId={selectedRequester.id} />}
 
           {!selectedRequester && (
             <section className="requester-card" aria-labelledby="requester-heading">
