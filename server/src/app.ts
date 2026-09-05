@@ -3,6 +3,9 @@ import cors from "cors";
 import { createHash, randomUUID } from "node:crypto";
 import { RequestedPriority } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
+import multer from "multer";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
+import path from "node:path";
 
 // The Express app is exported separately from app.listen() (see index.ts) so
 // Supertest can import `app` without opening a port. Do not merge these files.
@@ -10,6 +13,15 @@ export const app = express();
 
 app.use(cors());          // already wired: lets the Vite dev server call this API
 app.use(express.json());
+
+const attachmentRoot = path.resolve(process.cwd(), "storage", "attachments");
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 5 } });
+const allowedAttachmentTypes = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+
+function safeOriginalName(value: string): string | null {
+  const name = path.basename(value).trim();
+  return name && name.length <= 255 && !/[\u0000-\u001f]/.test(name) ? name : null;
+}
 
 // ---------------------------------------------------------------------------
 // Issue 2 — API health check
@@ -259,6 +271,59 @@ app.get("/api/tickets/:ticketId", async (req: Request, res: Response) => {
     console.error(`[${correlationId}] ticket detail failed`, error);
     return res.status(500).json({ error: "Unable to load Ticket", correlationId });
   }
+});
+
+app.post("/api/tickets/:ticketId/attachments", upload.array("files", 5), async (req: Request, res: Response) => {
+  const requesterId = positiveInteger(req.header("X-Requester-Id"));
+  const ticketId = positiveInteger(req.params.ticketId);
+  if (!requesterId || !ticketId) return res.status(400).json({ error: "Invalid Requester or Ticket ID" });
+  const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+  if (!files.length) return res.status(400).json({ error: "At least one file is required" });
+  if (files.some((file) => !allowedAttachmentTypes.has(file.mimetype))) return res.status(400).json({ error: "Unsupported attachment type" });
+  const names = files.map((file) => safeOriginalName(file.originalname));
+  if (names.some((name) => !name)) return res.status(400).json({ error: "Unsafe attachment filename" });
+  const prisma = getPrisma();
+  try {
+    const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, requesterId }, select: { id: true } });
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    const activeCount = await prisma.attachment.count({ where: { ticketId, removedAt: null } });
+    if (activeCount + files.length > 5) return res.status(400).json({ error: "A Ticket can have at most five active attachments" });
+    await mkdir(attachmentRoot, { recursive: true });
+    const created: Array<{ id: number; originalName: string; mimeType: string; sizeBytes: number; uploadedAt: Date; removedAt: Date | null; removedReason: string | null }> = [];
+    const stored: string[] = [];
+    try {
+      for (let index = 0; index < files.length; index += 1) {
+        const storedName = `${randomUUID()}${path.extname(names[index] as string).toLowerCase()}`;
+        await writeFile(path.join(attachmentRoot, storedName), files[index].buffer, { flag: "wx" });
+        stored.push(storedName);
+        const row = await prisma.attachment.create({ data: { ticketId, originalName: names[index] as string, storedName, mimeType: files[index].mimetype, sizeBytes: files[index].size }, select: { id: true, originalName: true, mimeType: true, sizeBytes: true, uploadedAt: true, removedAt: true, removedReason: true } });
+        created.push(row);
+      }
+    } catch (error) {
+      await Promise.all(stored.map((name) => unlink(path.join(attachmentRoot, name)).catch(() => undefined)));
+      throw error;
+    }
+    return res.status(201).json({ data: created });
+  } catch (error) {
+    const correlationId = randomUUID(); console.error(`[${correlationId}] attachment upload failed`, error);
+    return res.status(500).json({ error: "Unable to upload attachments", correlationId });
+  }
+});
+
+app.get("/api/tickets/:ticketId/attachments/:attachmentId/download", async (req: Request, res: Response) => {
+  const requesterId = positiveInteger(req.header("X-Requester-Id")); const ticketId = positiveInteger(req.params.ticketId); const attachmentId = positiveInteger(req.params.attachmentId);
+  if (!requesterId || !ticketId || !attachmentId) return res.status(400).json({ error: "Invalid attachment request" });
+  const attachment = await getPrisma().attachment.findFirst({ where: { id: attachmentId, ticketId, removedAt: null, ticket: { requesterId } } });
+  if (!attachment) return res.status(404).json({ error: "Attachment not found" });
+  return res.download(path.join(attachmentRoot, attachment.storedName), attachment.originalName, (error) => { if (error && !res.headersSent) res.status(404).json({ error: "Attachment not found" }); });
+});
+
+app.delete("/api/tickets/:ticketId/attachments/:attachmentId", async (req: Request, res: Response) => {
+  const requesterId = positiveInteger(req.header("X-Requester-Id")); const ticketId = positiveInteger(req.params.ticketId); const attachmentId = positiveInteger(req.params.attachmentId); const reason = normalizeText(req.body?.reason);
+  if (!requesterId || !ticketId || !attachmentId || !reason || reason.length > 500) return res.status(400).json({ error: "A removal reason is required" });
+  const result = await getPrisma().attachment.updateMany({ where: { id: attachmentId, ticketId, removedAt: null, ticket: { requesterId } }, data: { removedAt: new Date(), removedReason: reason } });
+  if (!result.count) return res.status(404).json({ error: "Attachment not found" });
+  return res.status(200).json({ data: { removed: true, attachmentId } });
 });
 
 export default app;

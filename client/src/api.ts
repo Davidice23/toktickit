@@ -35,6 +35,9 @@ export async function fetchTicketDetail(requesterId: number, ticketId: number): 
   if (!response.ok || !payload.data) throw new Error(payload.error ?? "Unable to load Ticket");
   return payload.data;
 }
+export async function uploadAttachments(requesterId: number, ticketId: number, files: File[]): Promise<void> { const form = new FormData(); files.forEach((file) => form.append("files", file)); const response = await fetch(`${API_URL}/api/tickets/${ticketId}/attachments`, { method: "POST", headers: { "X-Requester-Id": String(requesterId) }, body: form }); if (!response.ok) { const body = await response.json().catch(() => ({})) as { error?: string }; throw new Error(body.error ?? "Unable to upload attachments"); } }
+export async function removeAttachment(requesterId: number, ticketId: number, attachmentId: number, reason: string): Promise<void> { const response = await fetch(`${API_URL}/api/tickets/${ticketId}/attachments/${attachmentId}`, { method: "DELETE", headers: { "Content-Type": "application/json", "X-Requester-Id": String(requesterId) }, body: JSON.stringify({ reason }) }); if (!response.ok) throw new Error("Unable to remove attachment"); }
+export function attachmentDownloadUrl(ticketId: number, attachmentId: number): string { return `${API_URL}/api/tickets/${ticketId}/attachments/${attachmentId}/download`; }
 
 export async function fetchCategories(): Promise<Category[]> {
   const response = await fetch(`${API_URL}/api/categories?active=true`);
