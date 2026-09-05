@@ -1,12 +1,17 @@
 import { useState } from "react";
-import { checkSystem, Category } from "./api.js";
+import { checkSystem, Category, fetchRequesters, Requester } from "./api.js";
 
 type UiState = "idle" | "loading" | "success" | "error";
+type RequesterUiState = "idle" | "loading" | "ready" | "empty" | "error";
 
 export default function App() {
   const [state, setState] = useState<UiState>("idle");
   const [categories, setCategories] = useState<Category[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [requesterUiState, setRequesterUiState] = useState<RequesterUiState>("idle");
+  const [requesters, setRequesters] = useState<Requester[]>([]);
+  const [selectedRequester, setSelectedRequester] = useState<Requester | null>(null);
+  const [selectedId, setSelectedId] = useState("");
 
   async function handleCheck() {
     setState("loading");
@@ -19,6 +24,33 @@ export default function App() {
       setCategories([]);
       setState("error");
     }
+  }
+
+  async function loadRequesters() {
+    setRequesterUiState("loading");
+    try {
+      const result = await fetchRequesters();
+      setRequesters(result);
+      setRequesterUiState(result.length ? "ready" : "empty");
+    } catch {
+      setRequesters([]);
+      setRequesterUiState("error");
+    }
+  }
+
+  function continueAsRequester() {
+    const requester = requesters.find(({ id }) => String(id) === selectedId);
+    if (!requester) return;
+    localStorage.setItem("toktickit.devRequesterId", String(requester.id));
+    setSelectedRequester(requester);
+    setRequesterUiState("idle");
+  }
+
+  function changeRequester() {
+    localStorage.removeItem("toktickit.devRequesterId");
+    setSelectedRequester(null);
+    setSelectedId("");
+    loadRequesters();
   }
 
   return (
@@ -37,8 +69,8 @@ export default function App() {
         <nav id="primary-navigation" className={`primary-navigation${menuOpen ? " is-open" : ""}`} aria-label="Primary navigation">
           <a className="nav-link is-active" href="#my-tickets" aria-current="page" onClick={() => setMenuOpen(false)}>My Tickets</a>
           <a className="nav-link" href="#create-ticket" onClick={() => setMenuOpen(false)}>Create Ticket</a>
-          <span className="requester-context" aria-label="Current Requester">Requester: Not selected</span>
-          <button className="nav-action" type="button" onClick={() => setMenuOpen(false)}>Change Requester</button>
+          <span className="requester-context" aria-label="Current Requester">Requester: {selectedRequester?.name ?? "Not selected"}</span>
+          <button className="nav-action" type="button" onClick={() => { setMenuOpen(false); changeRequester(); }}>Change Requester</button>
         </nav>
       </header>
 
@@ -47,6 +79,25 @@ export default function App() {
           <p className="eyebrow">IT Service Desk</p>
           <h1 id="page-title">Requester workspace</h1>
           <p className="page-intro">A clear, responsive workspace for creating and tracking your IT requests.</p>
+
+          {!selectedRequester && (
+            <section className="requester-card" aria-labelledby="requester-heading">
+              <h2 id="requester-heading">Select Development Requester</h2>
+              <p className="helper-text">This selector is for Lab 2 testing only; it is not login or authentication. Authentication arrives in Lab 3.</p>
+              {requesterUiState === "idle" && <button className="btn btn-secondary-green" type="button" onClick={loadRequesters}>Choose Requester</button>}
+              {requesterUiState === "loading" && <div className="state-callout state-info" role="status" aria-live="polite"><strong>Loading:</strong> Development Requesters...</div>}
+              {requesterUiState === "error" && <div className="state-callout state-error" role="alert"><strong>Unable to load Requesters.</strong><button className="retry-button" type="button" onClick={loadRequesters}>Retry</button></div>}
+              {requesterUiState === "empty" && <div className="state-callout state-warning" role="status">No active Development Requesters are available.</div>}
+              {requesterUiState === "ready" && <div className="requester-form">
+                <label htmlFor="requester-select">Development Requester</label>
+                <select id="requester-select" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
+                  <option value="">Select a Requester</option>
+                  {requesters.map((requester) => <option key={requester.id} value={requester.id}>{requester.name}</option>)}
+                </select>
+                <button className="btn btn-primary-green" type="button" disabled={!selectedId} onClick={continueAsRequester}>Continue</button>
+              </div>}
+            </section>
+          )}
 
           <button className="btn btn-primary-green" onClick={handleCheck} disabled={state === "loading"}>
             {state === "loading" ? "Loading..." : "Check System"}
