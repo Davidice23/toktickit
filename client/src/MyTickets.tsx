@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchTickets, TicketList } from "./api.js";
 
-export default function MyTickets({ requesterId }: { requesterId: number }) {
+export default function MyTickets({ requesterId, onOpen }: { requesterId: number; onOpen: (ticketId: number) => void }) {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -26,7 +26,7 @@ export default function MyTickets({ requesterId }: { requesterId: number }) {
     {state === "error" && <div className="state-callout state-error" role="alert">Unable to load Tickets. <button type="button" className="retry-button" onClick={() => void load()}>Retry</button></div>}
     {state === "ready" && list && list.data.length === 0 && <div className="state-callout state-info" role="status"><strong>{query ? "No tickets match these filters." : "You have not created any tickets yet."}</strong></div>}
     {state === "ready" && list && list.data.length > 0 && <>
-      <div className="ticket-table-wrap"><table className="ticket-table"><caption className="visually-hidden">Tickets owned by the current Requester</caption><thead><tr><th>Ticket Number</th><th>Summary</th><th>Category</th><th>Related System</th><th>Priority</th><th>Status</th><th>Last Updated</th></tr></thead><tbody>{list.data.map((ticket) => <tr key={ticket.id}><td data-label="Ticket Number">{ticket.ticketNumber}</td><td data-label="Summary">{ticket.summary}</td><td data-label="Category">{ticket.category.name}</td><td data-label="Related System">{ticket.relatedSystem.name}</td><td data-label="Priority">{ticket.requestedPriority}</td><td data-label="Status"><span className="status-badge">{ticket.currentStatus}</span></td><td data-label="Last Updated">{new Date(ticket.updatedAt).toLocaleDateString()}</td></tr>)}</tbody></table></div>
+      <div className="ticket-table-wrap"><table className="ticket-table"><caption className="visually-hidden">Tickets owned by the current Requester</caption><thead><tr><th>Ticket Number</th><th>Summary</th><th>Category</th><th>Related System</th><th>Priority</th><th>Status</th><th>Last Updated</th><th>Action</th></tr></thead><tbody>{list.data.map((ticket) => <tr key={ticket.id}><td data-label="Ticket Number">{ticket.ticketNumber}</td><td data-label="Summary">{ticket.summary}</td><td data-label="Category">{ticket.category.name}</td><td data-label="Related System">{ticket.relatedSystem.name}</td><td data-label="Priority">{ticket.requestedPriority}</td><td data-label="Status"><span className="status-badge">{ticket.currentStatus}</span></td><td data-label="Last Updated">{new Date(ticket.updatedAt).toLocaleDateString()}</td><td data-label="Action"><button className="btn btn-secondary-green" type="button" onClick={() => onOpen(ticket.id)}>View</button></td></tr>)}</tbody></table></div>
       <div className="pagination" aria-label="Ticket pagination"><button className="btn btn-secondary-green" type="button" disabled={!list.meta.hasPreviousPage} onClick={() => { const next = page - 1; setPage(next); void load(next); }}>Previous</button><span>Page {list.meta.page} of {list.meta.totalPages}</span><button className="btn btn-secondary-green" type="button" disabled={!list.meta.hasNextPage} onClick={() => { const next = page + 1; setPage(next); void load(next); }}>Next</button></div>
     </>}
   </section>;

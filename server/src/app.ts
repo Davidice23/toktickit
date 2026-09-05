@@ -237,4 +237,28 @@ app.get("/api/tickets", async (req: Request, res: Response) => {
   }
 });
 
+app.get("/api/tickets/:ticketId", async (req: Request, res: Response) => {
+  const requesterId = positiveInteger(req.header("X-Requester-Id"));
+  const ticketId = positiveInteger(req.params.ticketId);
+  if (!requesterId || !ticketId) return res.status(400).json({ error: "Invalid Requester or Ticket ID" });
+  try {
+    const ticket = await getPrisma().ticket.findFirst({
+      where: { id: ticketId, requesterId },
+      select: {
+        ...ticketDetailSelect,
+        attachments: {
+          select: { id: true, ticketId: true, originalName: true, mimeType: true, sizeBytes: true, uploadedAt: true, removedAt: true, removedReason: true },
+          orderBy: [{ uploadedAt: "asc" }, { id: "asc" }],
+        },
+      },
+    });
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    return res.status(200).json({ data: ticket });
+  } catch (error) {
+    const correlationId = randomUUID();
+    console.error(`[${correlationId}] ticket detail failed`, error);
+    return res.status(500).json({ error: "Unable to load Ticket", correlationId });
+  }
+});
+
 export default app;
