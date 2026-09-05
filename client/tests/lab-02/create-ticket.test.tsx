@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "../../src/App.js";
 import * as api from "../../src/api.js";
@@ -17,7 +17,7 @@ describe("Lab 2 Create Ticket", () => {
     await user.click(screen.getByRole("button", { name: "Choose Requester" }));
     await user.selectOptions(await screen.findByLabelText("Development Requester"), "1");
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    await user.click(screen.getByRole("link", { name: "Create Ticket" }));
+    await user.click(within(screen.getByRole("navigation", { name: /primary navigation/i })).getByRole("link", { name: "Create Ticket" }));
     await screen.findByRole("heading", { name: "Create Ticket" });
 
     await user.click(screen.getByRole("button", { name: "Submit Ticket" }));
