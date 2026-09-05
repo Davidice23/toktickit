@@ -5,6 +5,14 @@ Engineering in the Age of AI Agents. Lab 1 delivers a small full-stack vertical
 slice that connects a React user interface to an Express REST API and a
 PostgreSQL database through Prisma.
 
+## Lab 2 development identity warning
+
+Lab 2 uses a Development Requester selector and `X-Requester-Id` header only to
+simulate requester-specific behavior. This mechanism is deliberately spoofable:
+a client can change the header and impersonate another seeded Requester. It is
+not login, authentication, authorization, or a security boundary. Lab 3 must
+replace it with a server-verified authenticated identity.
+
 ## Lab 1 goal
 
 The completed Lab 1 application lets a user select **Check System** and see:
