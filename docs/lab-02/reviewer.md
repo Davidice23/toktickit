@@ -13,8 +13,9 @@ This file records peer-review evidence for Lab 2. It is updated after every feat
 
 | PR | Issue | Branch flow | Review received | Author response | Approval | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| [#24](https://github.com/Davidice23/toktickit/pull/24) | #15 | `feature/15-lab2-contract` -> `lab2-staging` | Identified Attachment-count concurrency, visible Requester-header security warning, idempotency retention/scope, query-level case matching, and requested an AC-28/AC-29 traceability check. | Initial acknowledgement was too brief. A follow-up branch resolves the four specification ambiguities; inspection confirmed AC-28 and AC-29 were already present. | Approved by `Sxr1n` on 2026-09-05 | Merged; follow-up review pending |
-| [#25](https://github.com/Davidice23/toktickit/pull/25) | #15 | `fix/15-contract-review-feedback` -> `lab2-staging` | Follow-up review requested after resolving every substantive finding from PR #24. | Resolution details are recorded below and in the PR description. | Pending | Open; awaiting peer review |
+| [#24](https://github.com/Davidice23/toktickit/pull/24) | #15 | `feature/15-lab2-contract` -> `lab2-staging` | Identified Attachment-count concurrency, visible Requester-header security warning, idempotency retention/scope, query-level case matching, and requested an AC-28/AC-29 traceability check. | Initial acknowledgement was too brief. A follow-up branch resolves the four specification ambiguities; inspection confirmed AC-28 and AC-29 were already present. | Approved by `Sxr1n` on 2026-09-05 | Merged; superseded by follow-up PR #25 |
+| [#25](https://github.com/Davidice23/toktickit/pull/25) | #15 | `fix/15-contract-review-feedback` -> `lab2-staging` | Rechecked all five findings from PR #24 and asked for direct confirmation that AC-28/AC-29 were present. | Confirmed AC-28 and AC-29 in the traceability matrix and retained the technical corrections summarized below. | Approved by `Sxr1n` on 2026-09-05 | Merged as `a682e7e` on 2026-09-05 |
+| [#26](https://github.com/Davidice23/toktickit/pull/26) | #16 | `feature/16-lab2-data` -> `lab2-staging` | Pending peer review of schema, migration, repeat-safe seed, and integration evidence. | Pending | Pending | Open; awaiting peer review |
 
 ## PR #24 Review Resolution
 
@@ -26,7 +27,7 @@ This file records peer-review evidence for Lab 2. It is updated after every feat
 
 ## Follow-up PR
 
-[PR #25](https://github.com/Davidice23/toktickit/pull/25) contains the contract corrections and the initial reviewer/AI-use evidence required by Issue #15. Implementation remains paused until the follow-up is reviewed and approved. The final review result, any additional author responses, and merge evidence will be recorded here after review.
+[PR #25](https://github.com/Davidice23/toktickit/pull/25) contains the contract corrections and the initial reviewer/AI-use evidence required by Issue #15. `Sxr1n` approved the corrected contract after the author confirmed AC-28 and AC-29 in the traceability matrix. It was merged into `lab2-staging` as `a682e7e` before Issue #16 implementation began.
 
 ## Review Practice for Remaining Issues
 
