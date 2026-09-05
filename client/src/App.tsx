@@ -6,6 +6,7 @@ type UiState = "idle" | "loading" | "success" | "error";
 export default function App() {
   const [state, setState] = useState<UiState>("idle");
   const [categories, setCategories] = useState<Category[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   async function handleCheck() {
     setState("loading");
@@ -21,48 +22,67 @@ export default function App() {
   }
 
   return (
-    <div className="container py-5" style={{ maxWidth: 640 }}>
-      <h1 className="h3 mb-4">
-        TokTickIT <span className="text-success">IT Service Desk</span>
-      </h1>
+    <div className="app-shell">
+      <header className="app-header">
+        <a className="app-brand" href="#top" aria-label="TokTickIT home">TokTickIT</a>
+        <button
+          className="menu-toggle"
+          type="button"
+          aria-expanded={menuOpen}
+          aria-controls="primary-navigation"
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          Menu
+        </button>
+        <nav id="primary-navigation" className={`primary-navigation${menuOpen ? " is-open" : ""}`} aria-label="Primary navigation">
+          <a className="nav-link is-active" href="#my-tickets" aria-current="page" onClick={() => setMenuOpen(false)}>My Tickets</a>
+          <a className="nav-link" href="#create-ticket" onClick={() => setMenuOpen(false)}>Create Ticket</a>
+          <span className="requester-context" aria-label="Current Requester">Requester: Not selected</span>
+          <button className="nav-action" type="button" onClick={() => setMenuOpen(false)}>Change Requester</button>
+        </nav>
+      </header>
 
-      <button className="btn btn-success" onClick={handleCheck} disabled={state === "loading"}>
-        {state === "loading" ? "Loading..." : "Check System"}
-      </button>
+      <main id="top" className="app-main">
+        <section className="page-card" aria-labelledby="page-title">
+          <p className="eyebrow">IT Service Desk</p>
+          <h1 id="page-title">Requester workspace</h1>
+          <p className="page-intro">A clear, responsive workspace for creating and tracking your IT requests.</p>
 
-      {state === "loading" && (
-        <div className="alert alert-info mt-4" role="status">
-          Checking TokTickIT API...
-        </div>
-      )}
+          <button className="btn btn-primary-green" onClick={handleCheck} disabled={state === "loading"}>
+            {state === "loading" ? "Loading..." : "Check System"}
+          </button>
 
-      {state === "success" && (
-        <>
-          <div className="alert alert-success mt-4" role="status">
-            <strong>System Status:</strong> Online
-          </div>
+          {state === "loading" && (
+            <div className="state-callout state-info" role="status" aria-live="polite">
+              <strong>Loading:</strong> Checking TokTickIT API...
+            </div>
+          )}
 
-          <section aria-labelledby="category-heading">
-            <h2 id="category-heading" className="h5 mt-4">
-              IT Request Categories
-            </h2>
-            <ul className="list-group">
-              {categories.map((category) => (
-                <li className="list-group-item" key={category.id}>
-                  {category.name}
-                </li>
-              ))}
-            </ul>
-          </section>
-        </>
-      )}
+          {state === "success" && (
+            <>
+              <div className="state-callout state-success" role="status">
+                <strong>System Status:</strong> Online
+              </div>
 
-      {state === "error" && (
-        <div className="alert alert-danger mt-4" role="alert">
-          <p className="mb-1"><strong>System Status:</strong> Offline</p>
-          <p className="mb-0">Unable to connect to TokTickIT API</p>
-        </div>
-      )}
+              <section aria-labelledby="category-heading">
+                <h2 id="category-heading">IT Request Categories</h2>
+                <ul className="category-list">
+                  {categories.map((category) => (
+                    <li className="category-item" key={category.id}>{category.name}</li>
+                  ))}
+                </ul>
+              </section>
+            </>
+          )}
+
+          {state === "error" && (
+            <div className="state-callout state-error" role="alert">
+              <p><strong>System Status:</strong> Offline</p>
+              <p>Unable to connect to TokTickIT API</p>
+            </div>
+          )}
+        </section>
+      </main>
     </div>
   );
 }
