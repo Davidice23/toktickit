@@ -5,6 +5,14 @@ Engineering in the Age of AI Agents. Lab 1 delivers a small full-stack vertical
 slice that connects a React user interface to an Express REST API and a
 PostgreSQL database through Prisma.
 
+## Lab 2 development identity warning
+
+Lab 2 uses a Development Requester selector and `X-Requester-Id` header only to
+simulate requester-specific behavior. This mechanism is deliberately spoofable:
+a client can change the header and impersonate another seeded Requester. It is
+not login, authentication, authorization, or a security boundary. Lab 3 must
+replace it with a server-verified authenticated identity.
+
 ## Lab 1 goal
 
 The completed Lab 1 application lets a user select **Check System** and see:
@@ -13,6 +21,16 @@ The completed Lab 1 application lets a user select **Check System** and see:
 - the supported IT request categories stored in PostgreSQL;
 - a loading state while requests are running; and
 - a useful error message when the API or database is unavailable.
+
+## Lab 2 status
+
+Lab 2 extends the slice with a Development Requester context, owned Ticket
+creation/list/detail, and an Attachment lifecycle (upload, owned download,
+and soft removal). The integration branch is `lab2-staging`; feature work is
+completed through Issue #22. Issue #23 tracks final E2E, responsive screenshots,
+documentation, and the release PR to `main`. See
+[`docs/lab-02/release-readiness.md`](docs/lab-02/release-readiness.md) for the
+current evidence and remaining release checks.
 
 ## Technology stack
 
