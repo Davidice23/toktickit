@@ -18,11 +18,13 @@ Executed on the Issue #23 branch after Issues #15–#22 were merged:
 The attachment API covers valid PDF upload, owner-scoped download, soft
 removal, blocked removed download, unsupported type rejection, and signature
 validation. The Ticket Detail UI covers loading, unavailable, read-only data,
-attachment metadata, upload errors, download links, and removed metadata.
+attachment metadata, upload errors, header-authenticated browser downloads,
+and removed metadata.
 
 ## Manual/release checklist
 
-- [ ] Run the full requester E2E flow against real client/server/PostgreSQL.
+- [ ] Run the full requester E2E flow against real client/server/PostgreSQL,
+  including the browser download path that sends `X-Requester-Id`.
 - [ ] Capture 1440 px, 820 px, and 390 px screenshots for selection, Create
   Ticket, My Tickets, and Ticket Detail under `artifacts/lab-02/screenshots/`.
 - [ ] Confirm no document horizontal overflow, clipped filenames, or hidden
