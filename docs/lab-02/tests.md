@@ -3,7 +3,7 @@
 | Item | Value |
 | --- | --- |
 | Contract version | 0.1 |
-| Contract status | Approved by Wachirawit Photchamnian (67070505206) on 2026-09-03 |
+| Contract status | Student-approved revision; follow-up peer review pending |
 | Test execution status | Planned before implementation |
 | Acceptance source | `docs/lab-02/specification.md` AC-01 through AC-30 |
 | Final authority | Passing tests from final `main`, plus required visual inspection |
@@ -33,7 +33,7 @@ Lab 2 uses Spec DD, Test DD, and TDD. For each feature Issue, write the mapped t
 | --- | --- | --- | --- | --- | --- |
 | UNIT-01 | BR-08, BR-09, AC-07 | Ticket Number formatting from committed ID | `42` becomes `TKT-000042`; boundaries remain unique | `server/tests/lab-02/ticket-number.unit.test.ts` | Planned |
 | UNIT-02 | BR-13-BR-20, AC-08-AC-10 | Normalization and Ticket input validation | Trimmed valid data accepted; missing/boundary/enum values rejected by field | `server/tests/lab-02/ticket-validation.unit.test.ts` | Planned |
-| UNIT-03 | BR-23-BR-28, AC-12-AC-16 | Ticket-list query parsing | Valid defaults/combinations parsed; unknown/malformed values rejected | `server/tests/lab-02/ticket-query.unit.test.ts` | Planned |
+| UNIT-03 | BR-23-BR-28, AC-12-AC-16 | Ticket-list query parsing | Valid defaults/combinations parsed; unknown/malformed values rejected; search explicitly selects insensitive mode | `server/tests/lab-02/ticket-query.unit.test.ts` | Planned |
 | UNIT-04 | BR-30-BR-34, AC-21, AC-22 | File type/signature/size/name rules | Valid JPG/PNG/WEBP/PDF pass; spoofed, empty, large, unsafe fail | `server/tests/lab-02/attachment-validation.unit.test.ts` | Planned |
 | UNIT-05 | BR-39-BR-41, AC-25, AC-26 | Removal reason and idempotent removal rules | 5-200 trimmed reason accepted; invalid rejected; replay unchanged | `server/tests/lab-02/attachment-removal.unit.test.ts` | Planned |
 
@@ -48,11 +48,11 @@ Lab 2 uses Spec DD, Test DD, and TDD. For each feature Issue, write the mapped t
 | API-CRT-02 | BR-13-BR-17, AC-08 | Required and exact length boundaries | Valid min/max accepted; below/above/missing rejected by field | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
 | API-CRT-03 | BR-15-BR-17, AC-08 | Enum and active reference validation | Invalid priority or missing/inactive reference returns `400`; no row | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
 | API-CRT-04 | BR-12, AC-07 | Owner derives from Requester context | Saved `requesterId` equals valid header context | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-CRT-05 | BR-18, BR-19, AC-09 | Exact idempotent replay | First request `201`, replay `200`; one Ticket only | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
-| API-CRT-06 | BR-19, AC-09 | Idempotency-key payload conflict | Reused key with different normalized body returns `409` | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
+| API-CRT-05 | BR-18, BR-19, AC-09 | Requester-scoped exact idempotent replay | First request `201`, early/late replay `200`; one Ticket; another Requester cannot receive it | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
+| API-CRT-06 | BR-19, AC-09 | Stored-hash idempotency conflict | Same Requester/key with different canonical body returns `409`; immutable creation hash remains unchanged | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
 | API-CRT-07 | BR-09, BR-44, AC-10, AC-30 | Transaction rollback and safe unexpected error | `500` safe envelope/correlation ID; no partial Ticket | `server/tests/lab-02/create-ticket.api.test.ts` | Planned |
 | API-LST-01 | FR-09, BR-21, AC-11 | Owner-scoped list | Requester A never receives B Tickets | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
-| API-LST-02 | BR-23, AC-12 | Trimmed case-insensitive search | Matches number/summary/description only within owner | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
+| API-LST-02 | BR-23, AC-12 | Trimmed query-level case-insensitive search | Mixed-case terms match number/summary/description through PostgreSQL `ILIKE`, only within owner | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
 | API-LST-03 | BR-24, AC-13 | Individual and combined filters | Category/system/priority/status AND combinations are correct | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
 | API-LST-04 | BR-25, BR-26, AC-14 | Sort fields, direction, tie-breaker | Stable documented ordering for every allowed sort | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
 | API-LST-05 | BR-27, AC-15 | Pagination boundaries and metadata | Defaults, 10/20/50, last/beyond-last pages are accurate | `server/tests/lab-02/my-tickets.api.test.ts` | Planned |
@@ -63,7 +63,7 @@ Lab 2 uses Spec DD, Test DD, and TDD. For each feature Issue, write the mapped t
 | API-DTL-02 | BR-22, AC-20 | Missing versus cross-owner detail | Both return identical safe `404` envelope | `server/tests/lab-02/ticket-detail.api.test.ts` | Planned |
 | API-ATT-01 | BR-30-BR-38, AC-21 | Valid upload formats | JPG/PNG/WEBP/PDF produce `201`, metadata, and stored file | `server/tests/lab-02/attachments.api.test.ts` | Planned |
 | API-ATT-02 | BR-30-BR-34, AC-22 | Empty/type/signature/size/name rejection | Correct `400`/`413`/`415`; no metadata/orphan file | `server/tests/lab-02/attachments.api.test.ts` | Planned |
-| API-ATT-03 | BR-32, AC-22 | Five-active boundary and removed slot | First five active accepted, sixth `409`; removed frees slot | `server/tests/lab-02/attachments.api.test.ts` | Planned |
+| API-ATT-03 | BR-32, AC-22 | Five-active boundary, removed slot, and concurrent admission | First five active accepted, sixth `409`, removed frees slot; with four active and two concurrent uploads exactly one succeeds and final active count is five | `server/tests/lab-02/attachments.api.test.ts` | Planned |
 | API-ATT-04 | BR-36, AC-20, AC-24 | Cross-owner metadata/upload/download/remove | Same safe `404`; no mutation/content/existence leak | `server/tests/lab-02/attachments.api.test.ts` | Planned |
 | API-ATT-05 | BR-35, BR-40, AC-19 | Active and removed metadata list | Ordered list retains removed metadata without storage data | `server/tests/lab-02/attachments.api.test.ts` | Planned |
 | API-ATT-06 | BR-36, AC-23 | Active owned download | `200`, correct bytes/type/safe original disposition | `server/tests/lab-02/attachments.api.test.ts` | Planned |
@@ -199,5 +199,5 @@ The final run must use documented scripts from the final `main`, not only focuse
 ## 7. Known Limitations or Deferred Tests
 
 - No Lab 2 test is approved for deferral at contract creation.
+- **Security limitation:** `X-Requester-Id` is trivially spoofable. Its tests prove owner-scoped application behavior for cooperative Lab 2 testing, not authentication or security against a malicious client. Server-verified authentication must replace it in Lab 3.
 - Real authentication/authorization, IT Staff workflow, ticket lifecycle transitions, comments, notes, and Actions Taken are intentionally excluded rather than deferred Lab 2 tests.
-- `X-Requester-Id` tests prove owner-scoped application behavior, not security against a malicious client. Authentication replaces this mechanism in Lab 3.

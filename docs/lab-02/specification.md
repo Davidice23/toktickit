@@ -4,12 +4,14 @@
 | --- | --- |
 | Product | TokTickIT Requester Ticketing MVP |
 | Sprint | Lab 2 |
-| Contract version | 0.1 |
-| Contract status | Approved for implementation |
+| Contract version | 0.2 |
+| Contract status | Student-approved revision; follow-up peer review pending |
 | Approved by | Wachirawit Photchamnian (67070505206) |
 | Approval date | 2026-09-03 |
 | Specification issue | #15 |
 | Integration branch | `lab2-staging` |
+
+> **Lab 2 security limitation:** `X-Requester-Id` and the Development Requester selector are deliberately spoofable test mechanisms. They demonstrate owner-scoped application behavior but do not establish an authenticated identity or a security boundary. Lab 3 must replace them with server-verified authentication before this behavior can be considered secure.
 
 ## 1. Sprint Goal
 
@@ -86,14 +88,14 @@ Lab 2 is a multi-user ownership simulation, not an authentication sprint. Active
 - **BR-16** Category and Related System must exist and be active at creation time.
 - **BR-17** Frontend validation improves feedback, but the backend repeats all authoritative validation.
 - **BR-18** The UI generates one UUID idempotency key per logical submission. The submit button is disabled while pending.
-- **BR-19** Replaying an idempotency key with the same normalized payload returns the original Ticket without creating another. Reusing it with different data returns a conflict.
+- **BR-19** Idempotency is scoped by the composite `(requesterId, submissionKey)`. The backend stores a SHA-256 hash of the canonical normalized creation payload with the Ticket and retains both key and hash for the Ticket's lifetime. A replay with the same stored hash returns the original Ticket without creating another; the same key with a different hash returns a conflict. Later changes to mutable Ticket fields do not change the stored creation hash.
 - **BR-20** A recoverable creation failure preserves editable form values and selected valid files so the Requester can correct or retry.
 
 ### Ticket list and detail
 
 - **BR-21** Every Ticket list/detail query is constrained by the selected `requesterId` in the database query, not filtered only in the browser.
 - **BR-22** A missing Ticket and a Ticket owned by another Requester both return the same `404` safe response.
-- **BR-23** Search is trimmed and case-insensitive across Ticket Number, Summary, and Description.
+- **BR-23** Search is trimmed and case-insensitive across Ticket Number, Summary, and Description. Case-insensitivity is enforced in the PostgreSQL query with Prisma `mode: "insensitive"` (`ILIKE` semantics), not inherited from database or operating-system collation.
 - **BR-24** Supported filters are Category, Related System, Requested Priority, and Current Status. Empty filter values mean no filter.
 - **BR-25** Supported sort fields are `updatedAt`, `ticketDate`, `ticketNumber`, and `summary`; directions are `asc` and `desc`.
 - **BR-26** Default order is `updatedAt desc`, with `id desc` as the deterministic secondary order. Every other sort also uses `id desc` as a tie-breaker.
@@ -105,7 +107,7 @@ Lab 2 is a multi-user ownership simulation, not an authentication sprint. Active
 
 - **BR-30** Allowed types are JPG/JPEG (`image/jpeg`), PNG (`image/png`), WEBP (`image/webp`), and PDF (`application/pdf`). Both MIME type and file signature are validated.
 - **BR-31** Maximum size is 5 MiB (5,242,880 bytes) per file; an empty file is invalid.
-- **BR-32** A Ticket may have at most five active Attachments. Removed Attachments do not consume an active slot.
+- **BR-32** A Ticket may have at most five active Attachments. Removed Attachments do not consume an active slot. Upload admission is concurrency-safe: one database transaction locks the owned Ticket row with `SELECT ... FOR UPDATE`, counts active Attachments, and inserts metadata before releasing the lock. Concurrent uploads for the same Ticket are serialized, so the active count cannot exceed five.
 - **BR-33** The original filename is normalized for display, limited to 150 characters, stripped of path components/control characters, and never used as the physical stored filename.
 - **BR-34** A stored filename is an application-generated UUID plus a validated extension under `server/uploads/lab-02`; upload directories and file contents are excluded from Git.
 - **BR-35** Attachment metadata contains ID, Ticket ID, original name, stored name, MIME type, byte size, uploaded timestamp, removal timestamp, and removal reason.
@@ -136,7 +138,7 @@ The application uses the reusable Zen Green tokens and component states defined 
 | `RequesterUser` | `id`, `name`, unique `email`, `isActive`, `createdAt`, `updatedAt`; index on `(isActive, name)` |
 | `Category` | existing `id`, unique `name`, plus `isActive`, `createdAt`, `updatedAt`; index on `(isActive, name)` |
 | `RelatedSystem` | `id`, unique `name`, `isActive`, `createdAt`, `updatedAt`; index on `(isActive, name)` |
-| `Ticket` | `id`, nullable-while-transactional unique `ticketNumber`, unique `submissionKey`, `requesterId`, `categoryId`, `relatedSystemId`, `summary`, `description`, `requestedPriority`, `currentStatus`, nullable `itPriority`, `createdAt`, `updatedAt` |
+| `Ticket` | `id`, nullable-while-transactional unique `ticketNumber`, `submissionKey`, `submissionHash`, `requesterId`, `categoryId`, `relatedSystemId`, `summary`, `description`, `requestedPriority`, `currentStatus`, nullable `itPriority`, `createdAt`, `updatedAt`; composite unique `(requesterId, submissionKey)` |
 | `Attachment` | `id`, `ticketId`, `originalName`, unique `storedName`, `mimeType`, `sizeBytes`, `uploadedAt`, nullable `removedAt`, nullable `removedReason` |
 
 ### Enums
@@ -155,7 +157,7 @@ The application uses the reusable Zen Green tokens and component states defined 
 
 ### Index decisions
 
-- `Ticket.ticketNumber`, `Ticket.submissionKey`, requester email, Category name, Related System name, and stored filename are unique.
+- `Ticket.ticketNumber`, requester email, Category name, Related System name, and stored filename are unique. Idempotency uses a composite unique constraint on `(requesterId, submissionKey)` and stores the immutable canonical `submissionHash`.
 - Composite Ticket indexes support common owner-scoped operations: `(requesterId, updatedAt)`, `(requesterId, currentStatus)`, `(requesterId, categoryId)`, `(requesterId, relatedSystemId)`, and `(requesterId, requestedPriority)`.
 - `Attachment(ticketId, removedAt)` supports active-count and metadata queries.
 - Design justification: owner ID is the leading Ticket index column because every Lab 2 ticket query is owner-scoped. This both improves the common access path and makes ownership enforcement natural in the database query.
@@ -230,7 +232,7 @@ The authoritative endpoint, request, response, validation, status, pagination, o
 
 ## 11. Assumptions and Decisions
 
-1. `X-Requester-Id` is chosen for consistent temporary context across APIs; it provides no security and will be replaced in Lab 3.
+1. `X-Requester-Id` is chosen for consistent temporary context across APIs; changing the header trivially impersonates another seeded Requester. It provides no security and will be replaced in Lab 3.
 2. Ticket Numbers use committed database IDs so uniqueness is guaranteed without a race-prone daily counter.
 3. Search includes Ticket Number, Summary, and Description; reference values remain explicit filters to keep results understandable.
 4. Files are stored locally for this lab while metadata is stored in PostgreSQL. The storage service boundary must permit later replacement with object storage.
@@ -238,7 +240,14 @@ The authoritative endpoint, request, response, validation, status, pagination, o
 6. Cross-owner resources intentionally use the same `404` response as missing resources to avoid existence disclosure even though Lab 2 is not secure authentication.
 7. IT Priority is future-facing, nullable, and read-only; Lab 2 contains no control or workflow for assigning it.
 
-## 12. Issue Decomposition and Order
+## 12. Revision History
+
+| Version | Date | Reason |
+| --- | --- | --- |
+| 0.1 | 2026-09-03 | Initial student-approved engineering contract in PR #24 |
+| 0.2 | 2026-09-05 | Clarified Attachment concurrency, Requester-header security limitation, idempotency retention/scope, query-level case-insensitive search, and traceability after peer review |
+
+## 13. Issue Decomposition and Order
 
 | Issue | Branch | Purpose | Depends on |
 | --- | --- | --- | --- |

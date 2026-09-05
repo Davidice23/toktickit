@@ -1,8 +1,10 @@
 # Lab 2 REST API Contract
 
-**Contract status:** Approved by Wachirawit Photchamnian (67070505206) on 2026-09-03.
+**Contract status:** Student-approved revision; follow-up peer review pending.
 
 This document is normative for Lab 2. Examples use JSON unless a route explicitly uses multipart data or a file response.
+
+> **Not a security boundary:** Any client can change `X-Requester-Id` and impersonate a seeded Requester. Lab 2 uses this header only to test owner-scoped behavior. It must be replaced by a server-verified authenticated identity in Lab 3.
 
 ## 1. Shared Conventions
 
@@ -144,7 +146,7 @@ Each route returns active records ordered by `name asc, id asc`.
 Headers:
 
 - `X-Requester-Id`: required positive integer.
-- `Idempotency-Key`: required UUID generated once per logical form submission.
+- `Idempotency-Key`: required UUID generated once per logical form submission. It is deduplicated within the current Requester context.
 
 Request:
 
@@ -174,6 +176,8 @@ Responses:
 - `409`: an existing idempotency key is reused with a different normalized payload.
 - `500`: safe unexpected error; no partial Ticket is committed.
 
+The server canonicalizes the normalized creation body, stores its SHA-256 `submissionHash`, and retains `(requesterId, submissionKey, submissionHash)` for the lifetime of the Ticket. A later exact replay compares against that immutable creation hash even if future labs introduce mutable Ticket fields. The same key used by a different Requester is a separate idempotency scope and never returns the first Requester's Ticket.
+
 ## 6. My Tickets Query
 
 ### `GET /api/tickets`
@@ -196,7 +200,7 @@ Supported query parameters:
 
 Rules:
 
-- Search is case-insensitive and combines with filters using AND.
+- Search is case-insensitive and combines with filters using AND. Each searchable string predicate uses Prisma `mode: "insensitive"`, which produces PostgreSQL `ILIKE` behavior; results do not depend on environment collation.
 - Multiple filters combine using AND.
 - Default order is `updatedAt desc, id desc`.
 - All other sorts add `id desc` as the deterministic tie-breaker.
@@ -251,6 +255,8 @@ Validation:
 - Size is at most 5,242,880 bytes.
 - Ticket has fewer than five active Attachments.
 - Display filename is safe and no longer than 150 characters after normalization.
+
+The admission check is concurrency-safe. After file validation, a database transaction locks the owned Ticket row using `SELECT ... FOR UPDATE`, counts rows where `removedAt IS NULL`, and inserts metadata only when the count is below five. Uploads for different Tickets may proceed concurrently; uploads for one Ticket are serialized until commit/rollback.
 
 Responses:
 
