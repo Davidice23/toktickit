@@ -36,4 +36,16 @@ describe("Lab 2 Development Requester context", () => {
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
     expect(screen.getByRole("alert")).not.toHaveTextContent("database details");
   });
+
+  it("restores a valid requester from localStorage", async () => {
+    localStorage.setItem("toktickit.devRequesterId", "1");
+    vi.spyOn(api, "fetchRequesters").mockResolvedValue([
+      { id: 1, name: "Anan Chaiya", isActive: true },
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByLabelText("Current Requester")).toHaveTextContent("Anan Chaiya");
+    expect(screen.queryByRole("heading", { name: "Select Development Requester" })).not.toBeInTheDocument();
+  });
 });

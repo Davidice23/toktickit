@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { checkSystem, Category, fetchRequesters, Requester } from "./api.js";
 
 type UiState = "idle" | "loading" | "success" | "error";
@@ -12,6 +12,18 @@ export default function App() {
   const [requesters, setRequesters] = useState<Requester[]>([]);
   const [selectedRequester, setSelectedRequester] = useState<Requester | null>(null);
   const [selectedId, setSelectedId] = useState("");
+
+  useEffect(() => {
+    const storedId = localStorage.getItem("toktickit.devRequesterId");
+    if (!storedId) return;
+    fetchRequesters().then((available) => {
+      const requester = available.find(({ id }) => String(id) === storedId);
+      if (requester) setSelectedRequester(requester);
+      else localStorage.removeItem("toktickit.devRequesterId");
+    }).catch(() => {
+      localStorage.removeItem("toktickit.devRequesterId");
+    });
+  }, []);
 
   async function handleCheck() {
     setState("loading");

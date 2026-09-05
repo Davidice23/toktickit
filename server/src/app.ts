@@ -33,6 +33,8 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
 
 app.get("/api/requesters", async (req: Request, res: Response) => {
   try {
+    // The Lab 2 selector uses active=true (or the safe active-only default).
+    // active=false intentionally means no activity filter for future staff views.
     const active = req.query.active === undefined || req.query.active === "true";
     const requesters = await getPrisma().requesterUser.findMany({
       where: active ? { isActive: true } : undefined,

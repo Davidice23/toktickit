@@ -19,7 +19,7 @@ export interface Requester {
 function isRequester(value: unknown): value is Requester {
   if (typeof value !== "object" || value === null) return false;
   const requester = value as Record<string, unknown>;
-  return typeof requester.id === "number" && typeof requester.name === "string" && requester.isActive === true;
+  return typeof requester.id === "number" && typeof requester.name === "string" && typeof requester.isActive === "boolean";
 }
 
 export async function fetchRequesters(): Promise<Requester[]> {
