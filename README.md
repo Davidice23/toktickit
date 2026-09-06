@@ -26,9 +26,9 @@ The completed Lab 1 application lets a user select **Check System** and see:
 
 Lab 2 extends the slice with a Development Requester context, owned Ticket
 creation/list/detail, and an Attachment lifecycle (upload, owned download,
-and soft removal). The integration branch is `lab2-staging`; feature work is
-completed through Issue #22. Issue #23 tracks final E2E, responsive screenshots,
-documentation, and the release PR to `main`. See
+and soft removal). The released baseline is `main` through PR #35; the
+`feature/lab2-completion` branch adds the final evidence/documentation updates
+and closes the remaining UI gaps before its promotion PR. See
 [`docs/lab-02/release-readiness.md`](docs/lab-02/release-readiness.md) for the
 current evidence and remaining release checks.
 

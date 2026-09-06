@@ -5,7 +5,7 @@
 | Product | TokTickIT Requester Ticketing MVP |
 | Sprint | Lab 2 |
 | Contract version | 0.2 |
-| Contract status | Student-approved revision; follow-up peer review pending |
+| Contract status | Student-approved revision; peer-reviewed and merged through PR #25 |
 | Approved by | Wachirawit Photchamnian (67070505206) |
 | Approval date | 2026-09-03 |
 | Specification issue | #15 |

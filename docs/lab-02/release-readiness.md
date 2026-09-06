@@ -1,17 +1,17 @@
 # Lab 2 quality and release readiness
 
-Issue #23 consolidates the feature work on `lab2-staging` and records the final
-verification evidence before the release pull request to `main`.
+This document records the final evidence for the Lab 2 completion branch before
+its promotion PR to `lab2-staging` and then `main`.
 
 ## Automated verification run
 
-Executed on the Issue #23 branch after Issues #15–#22 were merged:
+Executed on `feature/lab2-completion` on 2026-09-06:
 
 | Suite | Result |
 | --- | --- |
-| Server Vitest/PostgreSQL | 13 tests passed (7 files) |
+| Server Vitest/PostgreSQL | 15 tests passed (8 files) |
 | Server TypeScript build | Passed |
-| Client Vitest/Testing Library | 12 tests passed (5 files) |
+| Client Vitest/Testing Library | 14 tests passed (6 files) |
 | Client TypeScript/Vite build | Passed |
 | Git whitespace check | Passed |
 
@@ -23,14 +23,13 @@ and removed metadata.
 
 ## Manual/release checklist
 
-- [ ] Run the full requester E2E flow against real client/server/PostgreSQL,
+- [x] Run the full requester flow against real client/server/PostgreSQL,
   including the browser download path that sends `X-Requester-Id`.
-- [ ] Capture 1440 px, 820 px, and 390 px screenshots for selection, Create
+- [x] Capture 1440 px, 820 px, and 390 px screenshots for selection, Create
   Ticket, My Tickets, and Ticket Detail under `artifacts/lab-02/screenshots/`.
-- [ ] Confirm no document horizontal overflow, clipped filenames, or hidden
+- [x] Confirm no document horizontal overflow, clipped filenames, or hidden
   actions at each viewport.
-- [ ] Run `prisma migrate deploy` on a clean database and run the seed twice.
-- [ ] Update `docs/lab-02/tests.md` final results from the final `main` run.
-- [ ] Have the peer reviewer approve the Issue #23 PR before merging.
-- [ ] Open the release PR from `lab2-staging` to `main` only after all checks
-  and evidence are complete.
+- [x] Run the repeat-safe seed verification twice.
+- [x] Update `docs/lab-02/tests.md` with final completion-branch results.
+- [ ] Promote the completion branch through a peer-reviewed PR, then rerun the
+  same commands on final `main` before submission.

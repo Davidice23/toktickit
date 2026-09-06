@@ -1,7 +1,5 @@
 # Lab 2 Peer Review Record
 
-This file records peer-review evidence for Lab 2. It is updated after every feature and release Pull Request.
-
 ## Identities
 
 | Role | Name | Student ID | GitHub |
@@ -9,29 +7,25 @@ This file records peer-review evidence for Lab 2. It is updated after every feat
 | Author | Wachirawit Photchamnian | 67070505206 | `Davidice23` |
 | Peer reviewer | นายศารินทร์ ไชยารัตน์ | 67070505207 | `Sxr1n` |
 
-## Review Log
+## Review log
 
-| PR | Issue | Branch flow | Review received | Author response | Approval | Status |
-| --- | --- | --- | --- | --- | --- | --- |
-| [#24](https://github.com/Davidice23/toktickit/pull/24) | #15 | `feature/15-lab2-contract` -> `lab2-staging` | Identified Attachment-count concurrency, visible Requester-header security warning, idempotency retention/scope, query-level case matching, and requested an AC-28/AC-29 traceability check. | Initial acknowledgement was too brief. A follow-up branch resolves the four specification ambiguities; inspection confirmed AC-28 and AC-29 were already present. | Approved by `Sxr1n` on 2026-09-05 | Merged; superseded by follow-up PR #25 |
-| [#25](https://github.com/Davidice23/toktickit/pull/25) | #15 | `fix/15-contract-review-feedback` -> `lab2-staging` | Rechecked all five findings from PR #24 and asked for direct confirmation that AC-28/AC-29 were present. | Confirmed AC-28 and AC-29 in the traceability matrix and retained the technical corrections summarized below. | Approved by `Sxr1n` on 2026-09-05 | Merged as `a682e7e` on 2026-09-05 |
-| [#26](https://github.com/Davidice23/toktickit/pull/26) | #16 | `feature/16-lab2-data` -> `lab2-staging` | Pending peer review of schema, migration, repeat-safe seed, and integration evidence. | Pending | Pending | Open; awaiting peer review |
+| PR | Scope | Branch flow | Review and response | Status |
+| --- | --- | --- | --- | --- |
+| [#24](https://github.com/Davidice23/toktickit/pull/24) | Contract | feature/15-lab2-contract -> lab2-staging | Reviewer identified five contract ambiguities; author acknowledged them and created follow-up work. | Merged |
+| [#25](https://github.com/Davidice23/toktickit/pull/25) | Contract follow-up | fix/15-contract-review-feedback -> lab2-staging | Resolved concurrency, header limitation, idempotency, search semantics, and AC traceability findings. | Approved and merged |
+| [#26](https://github.com/Davidice23/toktickit/pull/26) | Data model and seed | feature/16-lab2-data -> lab2-staging | Schema, migration, repeat-safe seed, and integration tests reviewed. | Approved and merged |
+| [#27](https://github.com/Davidice23/toktickit/pull/27) | Zen Green shell | feature/17-zen-green-foundation -> lab2-staging | Responsive shell and accessibility state reviewed. | Approved and merged |
+| [#28](https://github.com/Davidice23/toktickit/pull/28) | Requester context | feature/18-requester-context -> lab2-staging | Active Requester loading, persistence, switching, and safe errors reviewed. | Approved and merged |
+| [#29](https://github.com/Davidice23/toktickit/pull/29) | Create Ticket | feature/19-create-ticket -> lab2-staging | Backend validation, idempotency, UI validation, and error associations reviewed. | Approved and merged |
+| [#30](https://github.com/Davidice23/toktickit/pull/30) | My Tickets | feature/20-my-tickets -> lab2-staging | Owner-scoped list, search, pagination, and loading/empty/error states reviewed. | Approved and merged |
+| [#31](https://github.com/Davidice23/toktickit/pull/31) | Ticket Detail | feature/21-ticket-detail -> lab2-staging | Owned detail and safe cross-owner 404 behavior reviewed. | Approved and merged |
+| [#32](https://github.com/Davidice23/toktickit/pull/32) | Attachments | feature/22-attachments -> lab2-staging | Type, size, signature, ownership, download, and soft removal behavior reviewed. | Approved and merged |
+| [#33](https://github.com/Davidice23/toktickit/pull/33) | Quality evidence | feature/23-lab2-quality -> lab2-staging | Reviewer found the browser custom-header download issue; follow-up fix was created. | Approved and merged |
+| [#34](https://github.com/Davidice23/toktickit/pull/34) | Download fix | fix/attachment-download -> lab2-staging | Fetch -> Blob -> programmatic download was reviewed and confirmed. | Approved and merged |
+| [#35](https://github.com/Davidice23/toktickit/pull/35) | Release | lab2-staging -> main | Full staging promotion reviewed; all feature PRs were already peer-reviewed. | Approved and merged |
 
-## PR #24 Review Resolution
+## Review practice
 
-1. **Attachment count race:** specified an owned-Ticket row lock, active count, and metadata insert in one transaction; added a concurrent-upload integration test.
-2. **Requester header spoofability:** added prominent warnings to README and both specification/API contracts; retained the Lab 3 migration decision.
-3. **Idempotency lifetime:** scoped keys by Requester, stored an immutable canonical payload hash, and retained it for the Ticket lifetime; expanded replay/conflict tests.
-4. **Case-insensitive search:** specified Prisma insensitive mode/PostgreSQL `ILIKE`; expanded mixed-case tests.
-5. **Traceability:** verified AC-28 and AC-29 exist in `tests.md` and map to style, accessibility, responsive, and E2E evidence.
-
-## Follow-up PR
-
-[PR #25](https://github.com/Davidice23/toktickit/pull/25) contains the contract corrections and the initial reviewer/AI-use evidence required by Issue #15. `Sxr1n` approved the corrected contract after the author confirmed AC-28 and AC-29 in the traceability matrix. It was merged into `lab2-staging` as `a682e7e` before Issue #16 implementation began.
-
-## Review Practice for Remaining Issues
-
-- Request `Sxr1n` on each feature PR before merge.
-- Record at least the substantive findings, response, resulting commit/decision, and approval.
-- If no defect is found, record what files, acceptance criteria, and tests were checked rather than using only `LGTM`.
-- Do not mark an Issue Done until review feedback is resolved and the approved PR is merged.
+- `Sxr1n` was requested on every feature and release PR.
+- Substantive findings were resolved in follow-up commits or documented as Lab 3 limitations.
+- No PR was treated as complete until approval and merge were visible in GitHub.

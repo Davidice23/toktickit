@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "../../src/App.js";
@@ -7,6 +7,12 @@ import * as api from "../../src/api.js";
 afterEach(() => {
   vi.restoreAllMocks();
   localStorage.clear();
+});
+
+beforeEach(() => {
+  vi.spyOn(api, "fetchCategories").mockResolvedValue([]);
+  vi.spyOn(api, "fetchRelatedSystems").mockResolvedValue([]);
+  vi.spyOn(api, "fetchTickets").mockResolvedValue({ data: [], meta: { page: 1, pageSize: 10, totalItems: 0, totalPages: 0, hasPreviousPage: false, hasNextPage: false } });
 });
 
 describe("Lab 2 Development Requester context", () => {

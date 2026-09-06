@@ -3,8 +3,8 @@
 | Item | Value |
 | --- | --- |
 | Contract version | 0.1 |
-| Contract status | Student-approved revision; follow-up peer review pending |
-| Test execution status | Planned before implementation |
+| Contract status | Student-approved revision; peer-reviewed and merged through PR #25 |
+| Test execution status | Automated suites and manual browser/viewport evidence completed on the Lab 2 completion branch; promote this commit through the normal PR flow before claiming final-main evidence |
 | Acceptance source | `docs/lab-02/specification.md` AC-01 through AC-30 |
 | Final authority | Passing tests from final `main`, plus required visual inspection |
 
@@ -188,13 +188,33 @@ The final run must use documented scripts from the final `main`, not only focuse
 
 | Suite | Required final evidence | Current result |
 | --- | --- | --- |
-| Server unit | Complete output from final `main` | Not run - implementation not started |
-| API/PostgreSQL integration | Complete output from final `main` | Not run - implementation not started |
-| Client component/style | Complete output from final `main` | Not run - implementation not started |
-| Client/server builds | Complete output from final `main` | Not run for Lab 2 increment |
-| Playwright E2E/responsive | Report, screenshots, and complete output | Not run - implementation not started |
-| Migration/seed repeatability | Clean migration plus seed run twice | Not run - implementation not started |
-| Visual checklist | Completed checklist at three widths | Not inspected - implementation not started |
+| Server unit | Complete output from final `main` | Passed: 15 tests across 8 files on 2026-09-06 |
+| API/PostgreSQL integration | Complete output from final `main` | Passed: Requester, creation, list, detail, attachment, and seed suites included above |
+| Client component/style | Complete output from final `main` | Passed: 14 tests across 6 files on 2026-09-06 |
+| Client/server builds | Complete output from final `main` | Passed after completion changes: client Vite build and server TypeScript build |
+| Browser E2E/responsive | Report, screenshots, and complete output | Passed manually: requester selection, validation, list/filter, detail/attachment flow; screenshots captured at 1440/820/390 |
+| Migration/seed repeatability | Clean migration plus seed run twice | Passed: seed executed twice with deterministic reference counts |
+| Visual checklist | Completed checklist at three widths | Inspected at 1440/820/390: no document-level horizontal overflow; mobile menu and stacked detail/form remain usable |
+
+### Manual browser evidence
+
+The real client and server were run against the local PostgreSQL database. The
+following states were exercised manually: Development Requester selection,
+field-level Create Ticket validation, valid ticket listing, category/sort
+filters, owned Ticket Detail, PDF attachment metadata, and the responsive menu.
+
+Evidence files:
+
+- `artifacts/lab-02/screenshots/desktop/requester-selection.png`
+- `artifacts/lab-02/screenshots/desktop/requester-dropdown.png`
+- `artifacts/lab-02/screenshots/desktop/create-ticket.png`
+- `artifacts/lab-02/screenshots/desktop/create-validation.png`
+- `artifacts/lab-02/screenshots/desktop/my-tickets-filters.png`
+- `artifacts/lab-02/screenshots/desktop/ticket-detail-attachment.png`
+- `artifacts/lab-02/screenshots/tablet-create-ticket.png`
+- `artifacts/lab-02/screenshots/tablet-ticket-detail.png`
+- `artifacts/lab-02/screenshots/mobile-create-ticket.png`
+- `artifacts/lab-02/screenshots/mobile-ticket-detail.png`
 
 ## 7. Known Limitations or Deferred Tests
 

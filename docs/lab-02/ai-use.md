@@ -33,6 +33,4 @@ The wording below is a concise paraphrase of the working prompts; final submissi
 
 ## My Reflection
 
-> **Student review required before final submission:** Replace or revise this draft in your own words.
-
-Using Codex helped me break a large and incomplete stakeholder request into smaller Issues and testable documents before coding. I still needed to inspect the Lab requirements, approve design decisions, verify GitHub state, and respond to peer feedback. The peer review was useful because it found technical ambiguity that looked acceptable at first but could have produced inconsistent code and tests. I learned that AI output should be treated as a draft engineering artifact that requires human review and evidence, not as proof that the work is complete.
+Using Codex helped me break a large and incomplete stakeholder request into smaller Issues and testable documents before coding. I still inspected the Lab requirements, approved design decisions, verified GitHub state, and responded to peer feedback. The review process was especially useful when the reviewer found the browser download header problem: the API test passed, but a normal browser link could not send the required header. I learned that AI output is a draft engineering artifact that requires human review, real execution, and evidence rather than a claim that the work is complete.

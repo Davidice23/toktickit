@@ -97,8 +97,8 @@ export default function App() {
           <h1 id="page-title">Requester workspace</h1>
           <p className="page-intro">A clear, responsive workspace for creating and tracking your IT requests.</p>
 
-          {selectedRequester && createMode && <CreateTicket requesterId={selectedRequester.id} />}
-          {selectedRequester && !createMode && detailTicketId === null && <MyTickets requesterId={selectedRequester.id} onOpen={setDetailTicketId} />}
+          {selectedRequester && createMode && <CreateTicket requesterId={selectedRequester.id} onViewTicket={(ticketId) => { setCreateMode(false); setDetailTicketId(ticketId); }} onMyTickets={() => { setCreateMode(false); setDetailTicketId(null); }} />}
+          {selectedRequester && !createMode && detailTicketId === null && <MyTickets requesterId={selectedRequester.id} onOpen={setDetailTicketId} onCreate={() => setCreateMode(true)} />}
           {selectedRequester && !createMode && detailTicketId !== null && <TicketDetail requesterId={selectedRequester.id} ticketId={detailTicketId} onBack={() => setDetailTicketId(null)} />}
 
           {!selectedRequester && (
