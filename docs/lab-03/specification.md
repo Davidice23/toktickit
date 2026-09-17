@@ -1,6 +1,6 @@
 # Lab 3 Engineering Contract
 
-> Contract status: Pending peer review. Implementation must not start until this contract is approved.
+> Contract status: Approved by peer review on 2026-09-17. All decision-register rows were approved by Sxr1n on 2026-09-17; dependent implementation may proceed.
 
 ## 1. Sprint goal
 
@@ -223,21 +223,20 @@ The API uses JSON success and error envelopes defined in api-spec.md. Authentica
 | Cookie/CSRF | HttpOnly SameSite cookie, explicit origin CORS, CSRF header for mutations | Approved by Sxr1n in PR #36 (2026-09-17) |
 | Password hashing | Argon2id, memory 65536 KiB, iterations 3, parallelism 1; password length 12-128 characters | Approved by Sxr1n in PR #36 (2026-09-17) |
 | Administrator ticket access | Full operational Ticket/queue/comment/note capability plus User Management | Approved by Sxr1n in PR #36 (2026-09-17) |
-| Staff assignment | Only active IT Staff or Administrator can be an owner; Requesters cannot own operational assignment | Pending peer approval |
-| Login throttling | Five failures per normalized-email + IP in 15 minutes, then 429 with Retry-After: 900; no credential logging | Pending peer approval |
-| Queue pagination | Page sizes 10, 20, 50; default 20; default sort updatedAt desc, id desc | Pending peer approval |
-| Comment/note limits | Public Comment 1-2,000 characters; Internal Note 1-4,000 characters after trim | Pending peer approval |
-| Attachment access | Requester owns upload/remove/download; IT Staff and Administrator may read metadata/download on operational detail; no staff upload/remove | Pending peer approval |
-| API error envelope | Shared code/message/fields/correlationId structure | Pending peer approval |
+| Staff assignment | Only active IT Staff or Administrator can be an owner; Requesters cannot own operational assignment | Approved by Sxr1n in Issue #45 (2026-09-17) |
+| Login throttling | Five failures per normalized-email + IP in 15 minutes, then 429 with Retry-After: 900; no credential logging | Approved by Sxr1n in Issue #45 (2026-09-17) |
+| Queue pagination | Page sizes 10, 20, 50; default 20; default sort updatedAt desc, id desc | Approved by Sxr1n in Issue #45 (2026-09-17) |
+| Comment/note limits | Public Comment 1-2,000 characters; Internal Note 1-4,000 characters after trim | Approved by Sxr1n in Issue #45 (2026-09-17) |
+| Attachment access | Requester owns upload/remove/download; IT Staff and Administrator may read metadata/download on operational detail; no staff upload/remove | Approved by Sxr1n in Issue #45 (2026-09-17) |
+| API error envelope | Shared code/message/fields/correlationId structure | Approved by Sxr1n in Issue #45 (2026-09-17) |
 
-The first four decisions above were reviewed and approved before the authentication foundation was implemented.
-The remaining six decisions stay pending and gate their respective Staff, UI, and resource-policy follow-ups.
+All ten decisions above were reviewed and approved before the next dependent Staff, UI, and resource-policy slices. The first four were approved in PR #36; the remaining six were accepted by Sxr1n in the Issue #45 approval comment.
 Future changes that materially affect authorization or migration must be recorded in a follow-up review before the
 affected implementation is merged.
 
 ## 12. Product Definition of Done
 
-- [ ] This contract and the API/UI/test contracts are peer-reviewed and approved before implementation.
+- [x] This contract and the API/UI/test contracts are peer-reviewed and approved before implementation.
 - [ ] All approved FRs, BRs, and AC-01 through AC-24 are implemented.
 - [ ] Backend authentication, session, CSRF, role, ownership, and safe-error rules are enforced independently of UI controls.
 - [ ] Migration applies without losing IDs, Tickets, Attachments, Categories, or Related Systems.
