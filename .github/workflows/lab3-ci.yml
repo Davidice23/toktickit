@@ -92,6 +92,9 @@ jobs:
           cache-dependency-path: e2e/package-lock.json
       - name: Install E2E dependencies
         run: npm ci
+      - name: Install client dependencies for web server
+        working-directory: client
+        run: npm ci
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run E2E harness

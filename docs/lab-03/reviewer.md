@@ -1,21 +1,23 @@
 # Lab 3 Peer Review Record
 
-> Contract status: Pending peer review. Implementation must not start until this contract is approved.
+> Contract status: Approved by peer review on 2026-09-17. Feature implementation may start after the
+> test/CI scaffolding follow-up is recorded.
 
-This is the initial review record for the Lab 3 engineering contract. No implementation review has occurred.
+This record tracks the Contract approval and the test/CI scaffolding review. No feature implementation has
+started yet.
 
 ## Review status
 
-| Field | Initial value |
+| Field | Final value |
 | --- | --- |
 | Contract branch | docs/lab3-engineering-contract |
 | Base branch | lab3-staging |
 | Contract PR | [PR #36](https://github.com/Davidice23/toktickit/pull/36) |
 | Author | Wachirawit Photchamnian - 67070505206 |
 | Reviewer placeholder | Sxr1n |
-| Review state | Awaiting Sxr1n peer review |
-| Implementation started | No |
-| Approval | Pending |
+| Review state | Approved |
+| Implementation started | No feature implementation yet; PR #38 is scaffolding only |
+| Approval | Approved by Sxr1n |
 
 ## Files submitted for review
 
@@ -30,8 +32,8 @@ This is the initial review record for the Lab 3 engineering contract. No impleme
 
 | Date | PR/link | Reviewer | Comment or requested change | Author response | Approval |
 | --- | --- | --- | --- | --- | --- |
-| 2026-09-17 | [PR #36](https://github.com/Davidice23/toktickit/pull/36) | Sxr1n | Review requested; contract review not yet submitted | Pending | Pending |
-| 2026-09-17 | [PR #38](https://github.com/Davidice23/toktickit/pull/38) | Sxr1n | Test Harness/CI review requested; all three CI jobs passed | Pending | Pending |
+| 2026-09-17 06:28 UTC | [PR #36](https://github.com/Davidice23/toktickit/pull/36) | Sxr1n | Reviewed the full Contract; confirmed the authentication/session/CSRF/RBAC design, migration direction, API/UI contracts, and AC-to-test traceability. | Author resolved the review visibility/clarity concerns in the final Contract commits. | Approved |
+| 2026-09-17 06:57 UTC | [PR #38](https://github.com/Davidice23/toktickit/pull/38) | Sxr1n | Approved the test/CI scaffolding; requested a Playwright `webServer` and an explicit clarification that scaffolding does not bypass the Contract gate. | Addressed in Issue #39 / this follow-up PR. | Approved |
 
 ## Required completion fields
 
@@ -54,4 +56,4 @@ Before implementation begins, fill in:
 - [ ] API contract defines session, CSRF/CORS, validation, safe errors, and status codes.
 - [ ] UI contract covers modes, feedback, Zen Green reuse, responsive behavior, and accessibility.
 - [ ] Test plan exists before implementation and maps every acceptance criterion.
-- [ ] No implementation may start while peer approval is pending.
+- [x] No feature implementation started while peer approval was pending.

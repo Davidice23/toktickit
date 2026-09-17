@@ -12,8 +12,20 @@ test IDs and acceptance-criterion mapping.
 - E2E: Playwright is pinned under `e2e/`; the five Lab 3 specs currently contain
   explicit skipped placeholders because authentication and application routes
   are implemented by later issues.
+- Playwright owns the client dev-server lifecycle through `webServer`; the E2E CI
+  job installs the client dependencies before running the harness. This keeps the
+  first unskipped browser test from failing because the Vite server was never
+  started. API startup and disposable database wiring will be extended when the
+  authentication/migration E2E scenarios become executable.
 - Lab 3 server/client test paths exist as `describe.todo` entry points. They
   become red/green TDD tests when their dependent implementation issue starts.
+
+## Contract gate clarification
+
+PR #38 is test/CI scaffolding only: it adds no authentication, migration, role,
+or ticket behavior. It was reviewed after the Contract PR was approved and does
+not bypass the Contract implementation gate. Feature implementation starts only
+after the Contract approval is recorded in `reviewer.md`.
 
 ## Isolation rules
 
