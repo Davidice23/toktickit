@@ -1,7 +1,7 @@
 # Lab 3 REST API Contract
 
-> Contract status: Core authentication decisions approved by peer review on 2026-09-17. The remaining
-> Staff/UI/resource-policy decisions are still pending and gate the dependent implementation slices.
+> Contract status: Approved by peer review on 2026-09-17. All decision-register rows are approved; dependent
+> Staff/UI/resource-policy implementation may proceed under this API contract.
 
 This document is normative for the Lab 3 API. It replaces the Lab 2 Development Requester identity with an authenticated User identity while preserving existing Ticket and Attachment data.
 
