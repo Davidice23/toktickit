@@ -58,7 +58,7 @@ fields is present for field-addressable validation. correlationId is present for
 - The server allows only the configured client origin; wildcard origin is not permitted with credentials.
 - CORS credentials are enabled for the configured origin.
 - Login may establish a session without a CSRF token because it has no authenticated session yet.
-- The server issues a random CSRF token after login and through current-user retrieval; the client sends it as X-CSRF-Token on authenticated POST, PATCH, and DELETE requests.
+- The server issues a session-bound CSRF token after login and through current-user retrieval; the same token remains valid for the session so multiple tabs can share it. The client sends it as X-CSRF-Token on authenticated POST, PATCH, and DELETE requests.
 - The server compares the submitted CSRF token to the session value using a constant-time comparison.
 - SameSite and origin checks are defense in depth, not replacements for server-side authorization.
 

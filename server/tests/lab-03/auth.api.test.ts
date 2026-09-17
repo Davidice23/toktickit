@@ -31,12 +31,14 @@ describe.sequential("Lab 3 authentication/session contract", () => {
     csrfToken = response.body.data.csrfToken;
   });
 
-  it("returns the authenticated user and rotates a CSRF token", async () => {
-    const response = await agent.get("/api/auth/me");
-    expect(response.status).toBe(200);
-    expect(response.body.data.user.email).toBe(email);
-    expect(response.body.data.csrfToken).toEqual(expect.any(String));
-    csrfToken = response.body.data.csrfToken;
+  it("returns a stable CSRF token for repeated current-user calls", async () => {
+    const first = await agent.get("/api/auth/me");
+    const second = await agent.get("/api/auth/me");
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(first.body.data.user.email).toBe(email);
+    expect(second.body.data.csrfToken).toBe(first.body.data.csrfToken);
+    expect(second.body.data.csrfToken).toBe(csrfToken);
   });
 
   it("requires CSRF for authenticated mutations", async () => {
