@@ -25,7 +25,9 @@ describe.sequential("Lab 3 authentication/session contract", () => {
     expect(response.body.data.user.email).toBe(email);
     expect(response.body.data.user.passwordHash).toBeUndefined();
     expect(response.body.data.csrfToken).toEqual(expect.any(String));
-    expect(response.headers["set-cookie"]).toEqual(expect.arrayContaining([expect.stringContaining("toktickit_session="), expect.stringContaining("HttpOnly")]));
+    const cookies = response.headers["set-cookie"]?.join(";") ?? "";
+    expect(cookies).toContain("toktickit_session=");
+    expect(cookies).toContain("HttpOnly");
     csrfToken = response.body.data.csrfToken;
   });
 
