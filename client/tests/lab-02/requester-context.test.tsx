@@ -1,51 +1,31 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import App from "../../src/App.js";
 import * as api from "../../src/api.js";
+
+const session = { user: { id: 1, name: "Anan Chaiya", email: "anan@example.com", role: "REQUESTER" as const, isActive: true, mustChangePassword: false }, mustChangePassword: false, csrfToken: "csrf" };
 
 afterEach(() => {
   vi.restoreAllMocks();
   localStorage.clear();
 });
 
-describe("Lab 2 Development Requester context", () => {
-  it("loads active requesters and persists the selected requester", async () => {
-    vi.spyOn(api, "fetchRequesters").mockResolvedValue([
-      { id: 1, name: "Anan Chaiya", isActive: true },
-      { id: 2, name: "Kanya Prasert", isActive: true },
-    ]);
-    const user = userEvent.setup();
+describe("Lab 3 authenticated Requester context", () => {
+  it("uses the authenticated session instead of a Development Requester selector", async () => {
+    vi.spyOn(api, "fetchCurrentUser").mockResolvedValue(session);
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "Choose Requester" }));
-    await user.selectOptions(await screen.findByLabelText("Development Requester"), "2");
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-
-    expect(localStorage.getItem("toktickit.devRequesterId")).toBe("2");
-    expect(screen.getByLabelText("Current Requester")).toHaveTextContent("Kanya Prasert");
+    expect(await screen.findByLabelText("Current User")).toHaveTextContent("Anan Chaiya");
+    expect(screen.queryByRole("button", { name: "Choose Requester" })).not.toBeInTheDocument();
+    expect(localStorage.getItem("toktickit.devRequesterId")).toBeNull();
   });
 
-  it("shows a safe failure with Retry", async () => {
-    vi.spyOn(api, "fetchRequesters").mockRejectedValue(new Error("database details"));
-    const user = userEvent.setup();
+  it("shows a safe sign-in form when there is no authenticated session", async () => {
+    vi.spyOn(api, "fetchCurrentUser").mockRejectedValue(new Error("database details"));
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "Choose Requester" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(/unable to load requesters/i);
-    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
-    expect(screen.getByRole("alert")).not.toHaveTextContent("database details");
-  });
-
-  it("restores a valid requester from localStorage", async () => {
-    localStorage.setItem("toktickit.devRequesterId", "1");
-    vi.spyOn(api, "fetchRequesters").mockResolvedValue([
-      { id: 1, name: "Anan Chaiya", isActive: true },
-    ]);
-
-    render(<App />);
-
-    expect(await screen.findByLabelText("Current Requester")).toHaveTextContent("Anan Chaiya");
-    expect(screen.queryByRole("heading", { name: "Select Development Requester" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Sign in to TokTickIT" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.queryByText("database details")).not.toBeInTheDocument();
   });
 });
