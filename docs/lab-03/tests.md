@@ -84,7 +84,7 @@ Additional planned files (allowed alongside the minimum Lab set):
 | API-08 | API | BR-11, BR-12 | Cross-owner Ticket and Attachment resources use safe ownership response | server/tests/lab-03/authorization.api.test.ts | Planned / Not run |
 | API-09 | API | FR-12, AC-09 | Staff Queue search, filters, sorting, pagination, metadata | server/tests/lab-03/staff-queue.api.test.ts | Planned / Not run |
 | API-10 | API | FR-13, AC-10 | Staff Ticket Detail includes permitted operational data | server/tests/lab-03/staff-ticket-detail.api.test.ts | Planned / Not run |
-| API-11 | API | FR-14, BR-13, BR-14, AC-11 | Claim/reassign validates active allowed owner | server/tests/lab-03/staff-ticket-detail.api.test.ts | Planned / Not run |
+| API-11 | API | FR-14, BR-13, BR-14, AC-11 | Atomic claim and separate reassign/unassign validate active allowed owner and conflicts | server/tests/lab-03/staff-ticket-detail.api.test.ts | Planned / Not run |
 | API-12 | API | FR-15, BR-15, BR-16, AC-12 | IT Priority differs from Requested Priority and is restricted to IT Staff/Administrator | server/tests/lab-03/staff-ticket-detail.api.test.ts | Planned / Not run |
 | API-13 | API | FR-16, BR-17, BR-18, AC-12 | Valid status transition and invalid transition rejection | server/tests/lab-03/staff-ticket-detail.api.test.ts | Planned / Not run |
 | API-14 | API | FR-18, FR-19, BR-21, BR-22, AC-13 | Public/Internal visibility and role authorization | server/tests/lab-03/comments-notes.api.test.ts | Planned / Not run |
@@ -96,15 +96,17 @@ Additional planned files (allowed alongside the minimum Lab set):
 | API-20 | API | FR-27, AC-18 | Duplicate email, invalid role, and invalid input are safe conflicts/validation | server/tests/lab-03/users-admin.api.test.ts | Planned / Not run |
 | API-21 | API | FR-26, BR-29, AC-19 | Initial password reset forces next-login change and revokes sessions | server/tests/lab-03/users-admin.api.test.ts | Planned / Not run |
 | API-22 | API | FR-27, BR-26, BR-27, AC-20 | Self-deactivation and last-admin removal are prevented transactionally | server/tests/lab-03/users-admin.api.test.ts | Planned / Not run |
-| API-23 | API | FR-28, AC-21 | Non-Administrators cannot access User Management | server/tests/lab-03/authorization.api.test.ts | Planned / Not run |
+| API-23 | API | FR-06, AC-21 | Non-Administrators cannot access User Management | server/tests/lab-03/authorization.api.test.ts | Planned / Not run |
 | API-24 | Integration | BR-31, BR-32, AC-24 | Migration preserves IDs/data | server/tests/lab-03/migration.integration.test.ts | Planned / Not run |
 | API-25 | Integration | BR-32, AC-24 | Seed runs twice without duplicate users, Tickets, comments, notes, or references | server/tests/lab-03/seed.integration.test.ts | Planned / Not run |
 | API-26 | Authorization | FR-12-FR-17, AC-09-AC-13 | Administrator can use the operational queue, assignment, priority, status, comments, and notes allowed by the matrix | server/tests/lab-03/authorization.api.test.ts | Planned / Not run |
 | API-27 | Security | BR-04, AC-02 | Login throttles after five failures per email/IP window and returns 429 with Retry-After | server/tests/lab-03/auth.api.test.ts | Planned / Not run |
-| API-28 | Migration | BR-15, BR-31, AC-24 | Existing Tickets receive IT Priority copied from Requested Priority without changing IDs or ownership | server/tests/lab-03/migration.integration.test.ts | Planned / Not run |
+| API-28 | Migration | BR-16, BR-31, AC-24 | Existing Tickets receive IT Priority copied from Requested Priority without changing IDs or ownership | server/tests/lab-03/migration.integration.test.ts | Planned / Not run |
 | API-29 | Security | BR-28, AC-17 | Administrator deactivation revokes existing sessions and blocks subsequent access | server/tests/lab-03/users-admin.api.test.ts | Planned / Not run |
 | API-30 | API | BR-23, AC-13 | Public Comments and Internal Notes have no edit/delete endpoint and remain append-only | server/tests/lab-03/comments-notes.api.test.ts | Planned / Not run |
 | API-31 | Authorization | FR-22, AC-10 | Requester upload/remove versus Staff/Administrator metadata/download Attachment policy | server/tests/lab-03/authorization.api.test.ts | Planned / Not run |
+| API-32 | Authorization | FR-06, AC-05 | Exhaustive role matrix checks: unauthenticated, Requester-to-Staff, Staff-to-Admin, Admin staff operations, and Requester ownership | server/tests/lab-03/authorization.api.test.ts | Planned / Not run |
+| API-33 | Error handling | BR-30, AC-14 | Unexpected server failure returns safe 500 envelope with correlationId and no stack/detail leak | server/tests/lab-03/authorization.api.test.ts | Planned / Not run |
 | UI-01 | UI | FR-01, AC-01, AC-02 | Login labels, validation, busy, safe failure, success routing | client/tests/lab-03/Login.test.tsx | Planned / Not run |
 | UI-02 | UI | FR-04, AC-03 | Change Password validation, busy, failure, continuation | client/tests/lab-03/ChangePassword.test.tsx | Planned / Not run |
 | UI-03 | UI | FR-06, AC-04, AC-05 | Authenticated shell, role navigation, logout, direct-route guard | client/tests/lab-03/Login.test.tsx | Planned / Not run |
@@ -128,7 +130,7 @@ Additional planned files (allowed alongside the minimum Lab set):
 | AC-02 | API-02, UI-01, E2E-01 |
 | AC-03 | API-04, UI-02, E2E-01 |
 | AC-04 | API-03, UI-03, E2E-01 |
-| AC-05 | API-06, API-08, API-23, API-26, UI-03, E2E-01, E2E-02, E2E-03 |
+| AC-05 | API-06, API-08, API-23, API-26, API-32, UI-03, E2E-01, E2E-02, E2E-03 |
 | AC-06 | API-06, API-08, API-31, E2E-05 |
 | AC-07 | API-07, UI-07, E2E-05 |
 | AC-08 | API-16, UI-07, E2E-05 |
@@ -137,7 +139,7 @@ Additional planned files (allowed alongside the minimum Lab set):
 | AC-11 | API-11, UI-05, E2E-02 |
 | AC-12 | API-12, API-13, UI-05, E2E-02 |
 | AC-13 | API-14, API-15, API-30, UI-05, E2E-02 |
-| AC-14 | API-20, UI-01, UI-04, UI-05, UI-06, E2E-02, E2E-03 |
+| AC-14 | API-20, API-33, UI-01, UI-04, UI-05, UI-06, E2E-02, E2E-03 |
 | AC-15 | API-17, UI-06, E2E-03 |
 | AC-16 | API-18, UI-06, E2E-03 |
 | AC-17 | API-19, API-29, UI-06, E2E-03 |
@@ -147,14 +149,14 @@ Additional planned files (allowed alongside the minimum Lab set):
 | AC-21 | API-23, UI-06, E2E-03 |
 | AC-22 | STYLE-01, STYLE-02, E2E-04 |
 | AC-23 | UI-01, UI-02, STYLE-01, STYLE-02, E2E-04 |
-| AC-24 | API-24, API-25 and migration/seed output |
+| AC-24 | API-24, API-25, API-28 and migration/seed output |
 
 ## 6. Planned commands
 
 Server:
 
     npm ci
-    npx prisma migrate deploy
+    npm run lab3:upgrade
     npm run prisma:seed
     npm run prisma:seed
     npm run test

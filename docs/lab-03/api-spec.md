@@ -50,7 +50,7 @@ fields is present for field-addressable validation. correlationId is present for
 - The cookie is HttpOnly, SameSite=Lax for local development, Secure in HTTPS environments, path /, and expires after 8 hours of maximum session lifetime.
 - Session lookup validates token hash, user active state, revokedAt, and expiresAt.
 - Logout sets revokedAt and clears the cookie.
-- Deactivation, initial-password reset, and password change revoke affected sessions according to the approved decision.
+- Deactivation and initial-password reset revoke all sessions for the affected user; password change revokes the old session and creates one rotated session.
 - The client never reads the session cookie.
 
 ### CSRF and CORS
@@ -186,7 +186,7 @@ Supported query parameters:
 | sortBy | updatedAt, ticketDate, ticketNumber, summary | updatedAt |
 | sortDirection | asc, desc | desc |
 | page | positive one-based integer | 1 |
-| pageSize | 10, 20, 50 | 20 |
+| pageSize | 10, 20, 50 | 10 |
 
 The server adds the authenticated user ownership predicate. Success 200 returns data and page metadata. Invalid queries return 400. No other user's Ticket appears.
 
@@ -234,13 +234,17 @@ Success 200 returns queue rows and metadata: page, pageSize, totalItems, totalPa
 
 IT Staff and Administrators receive full permitted operational detail including Attachments, Public Comments, Internal Notes, owner, priorities, status, and requester resolution indication. Requesters receive no Staff route data.
 
+### POST /api/staff/tickets/:ticketId/claim
+
+The caller must be IT Staff or Administrator. This endpoint atomically claims only an unassigned Ticket for the current caller. If an owner already exists, including a concurrent claim, it returns 409 CLAIM_CONFLICT. Claim does not change status.
+
 ### PATCH /api/staff/tickets/:ticketId/assignment
 
 Request:
 
     { "ownerId": 8 }
 
-The target must be an active IT Staff or Administrator user. The caller must be IT Staff or Administrator. `ownerId: null` is permitted only when the Ticket is New or Open; otherwise the server returns 409 OWNER_REQUIRED. Claim is represented by sending the current caller as ownerId and succeeds only when the Ticket is unassigned; an already-owned or concurrently claimed Ticket returns 409 CLAIM_CONFLICT. Invalid role, inactive target, or missing Ticket returns 400/404. Success 200 returns the updated owner.
+This endpoint is for reassigning an already-owned Ticket or unassigning it. The target must be an active IT Staff or Administrator user. The caller must be IT Staff or Administrator. `ownerId: null` is permitted only when the Ticket is New or Open; otherwise the server returns 409 OWNER_REQUIRED. Reassignment of an unassigned Ticket must use the atomic claim endpoint and returns 409 CLAIM_REQUIRED here. Invalid role, inactive target, or missing Ticket returns 400/404. Success 200 returns the updated owner.
 
 ### PATCH /api/staff/tickets/:ticketId/priority
 

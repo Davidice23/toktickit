@@ -104,7 +104,7 @@ Administrator has the operational staff capability required by the Lab contract:
 - BR-01: Only an active user with valid credentials may authenticate.
 - BR-02: Email is trimmed and normalized consistently before lookup and uniqueness validation.
 - BR-03: Invalid credentials and inactive-account credentials return the same safe public failure message.
-- BR-04: Repeated login failures are rate-limited or delayed according to the approved implementation decision; raw credentials are never logged.
+- BR-04: Repeated login failures are limited to five attempts per normalized-email + IP pair in 15 minutes, then return 429 with Retry-After: 900; raw credentials are never logged.
 - BR-05: Passwords are stored only as strong one-way hashes and never returned by an API.
 - BR-06: A valid session is opaque, server-side, expires, and is revoked by logout, password reset, deactivation, or explicit invalidation.
 - BR-07: A user marked mustChangePassword cannot access normal application APIs until changing the password.
@@ -168,14 +168,15 @@ Foreign keys shall use restrictive deletion. User deletion is not supported. Rol
 
 ### Migration sequence
 
-1. Add User role, password, active, and first-login fields while preserving existing rows.
-2. Rename the existing RequesterUser table to User with an explicit transactional SQL rename, preserving primary keys; no copy-and-drop alternative is in scope.
-3. Re-point Ticket requester relation without rewriting requester IDs.
-4. Add owner, resolution, comments, notes, sessions, indexes, and expanded status enum.
-5. Backfill existing Requesters with local-only initial password hashes from `LAB3_SEED_INITIAL_PASSWORD`; set mustChangePassword=true and abort the transaction if any existing User lacks a credential.
-6. Backfill every existing Ticket.itPriority from requestedPriority before enforcing non-null; preserve Ticket, Attachment, and ownership IDs/rows.
-7. Seed additional IT Staff, Administrator, realistic Tickets, comments, and notes.
-8. Verify migration on a clean test database and verify existing Lab 2 data remains queryable; any assertion failure rolls back and prevents application startup.
+The executable upgrade path is `npm run lab3:upgrade`; it is not a single `prisma migrate deploy` followed by an unrelated seed. The command runs these ordered steps and exits non-zero on any failure:
+
+1. `npx prisma migrate deploy` applies the structural migration: rename `RequesterUser` to `User` with an explicit transactional SQL rename, preserve primary keys/FKs, add role/session/workflow/comment/note fields and indexes, expand the status enum, and temporarily leave credential and `itPriority` columns nullable for backfill. No copy-and-drop alternative is in scope.
+2. `tsx scripts/lab3/backfill-credentials.ts` runs a Prisma transaction using `LAB3_SEED_INITIAL_PASSWORD`, creates Argon2id hashes, sets `mustChangePassword=true`, copies every existing `Ticket.requestedPriority` into `itPriority`, and aborts/rolls back if any existing User lacks a credential or any preserved ID/count assertion fails.
+3. `tsx scripts/lab3/verify-migration.ts` checks User/Ticket/Attachment/Category/Related System counts and IDs, ownership, Attachment metadata, non-null priority, and credential completeness. Application startup remains blocked if this command fails.
+4. `tsx scripts/lab3/finalize-constraints.ts` applies the final non-null/check constraints in a transaction only after verification succeeds.
+5. `npm run prisma:seed` adds repeat-safe IT Staff, Administrator, realistic Tickets, comments, and notes without overwriting changed credentials. Seed runs only after the upgrade command succeeds.
+
+Rerunning the command is safe: completed structural/backfill steps are detected by migration/version and idempotent upserts; a failed backfill rolls back its transaction and leaves startup blocked until the command succeeds. The clean test database and Lab 2 fixture database must both run this same path.
 
 ## 8. Seed requirements
 
