@@ -219,10 +219,10 @@ The API uses JSON success and error envelopes defined in api-spec.md. Authentica
 
 | Decision | Proposed choice | Status |
 | --- | --- | --- |
-| Session mechanism | Opaque server-side session cookie, hashed token in Session table, maximum lifetime 8 hours | Pending peer approval |
-| Cookie/CSRF | HttpOnly SameSite cookie, explicit origin CORS, CSRF header for mutations | Pending peer approval |
-| Password hashing | Argon2id, memory 65536 KiB, iterations 3, parallelism 1; password length 12-128 characters | Pending peer approval |
-| Administrator ticket access | Full operational Ticket/queue/comment/note capability plus User Management | Pending peer approval |
+| Session mechanism | Opaque server-side session cookie, hashed token in Session table, maximum lifetime 8 hours | Approved by Sxr1n in PR #36 (2026-09-17) |
+| Cookie/CSRF | HttpOnly SameSite cookie, explicit origin CORS, CSRF header for mutations | Approved by Sxr1n in PR #36 (2026-09-17) |
+| Password hashing | Argon2id, memory 65536 KiB, iterations 3, parallelism 1; password length 12-128 characters | Approved by Sxr1n in PR #36 (2026-09-17) |
+| Administrator ticket access | Full operational Ticket/queue/comment/note capability plus User Management | Approved by Sxr1n in PR #36 (2026-09-17) |
 | Staff assignment | Only active IT Staff or Administrator can be an owner; Requesters cannot own operational assignment | Pending peer approval |
 | Login throttling | Five failures per normalized-email + IP in 15 minutes, then 429 with Retry-After: 900; no credential logging | Pending peer approval |
 | Queue pagination | Page sizes 10, 20, 50; default 20; default sort updatedAt desc, id desc | Pending peer approval |
@@ -230,7 +230,8 @@ The API uses JSON success and error envelopes defined in api-spec.md. Authentica
 | Attachment access | Requester owns upload/remove/download; IT Staff and Administrator may read metadata/download on operational detail; no staff upload/remove | Pending peer approval |
 | API error envelope | Shared code/message/fields/correlationId structure | Pending peer approval |
 
-No implementation issue may begin while a decision above materially affects the authorization or migration contract and remains unresolved.
+All decisions above were reviewed and approved before feature implementation. Future changes that materially affect
+authorization or migration must be recorded in a follow-up review before the affected implementation is merged.
 
 ## 12. Product Definition of Done
 
