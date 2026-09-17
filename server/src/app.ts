@@ -19,7 +19,7 @@ import {
   recordLoginFailure,
   requireCsrf,
   requireSession,
-  rotateCsrf,
+  getCsrfToken,
   safeUser,
   setSessionCookie,
   validatePassword,
@@ -105,7 +105,7 @@ app.get("/api/auth/me", requireSession, async (req: Request, res: Response) => {
   const auth = (req as AuthenticatedRequest).auth;
   if (!auth) return;
   try {
-    const csrfToken = await rotateCsrf(auth.session.id);
+    const csrfToken = await getCsrfToken(auth.session.id, auth.rawToken);
     res.status(200).json({ data: { user: safeUser(auth.user), mustChangePassword: auth.user.mustChangePassword, csrfToken } });
   } catch {
     res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to load the current user"));

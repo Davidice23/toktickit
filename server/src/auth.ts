@@ -1,12 +1,13 @@
 import argon2 from "argon2";
 import type { NextFunction, Request, Response } from "express";
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { RequesterUser, Session } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 
 export const SESSION_COOKIE = "toktickit_session";
 const SESSION_MAX_AGE_SECONDS = 8 * 60 * 60;
 const SESSION_MAX_AGE_MS = SESSION_MAX_AGE_SECONDS * 1000;
+const CSRF_SECRET = process.env.CSRF_SECRET ?? "lab3-local-csrf-secret";
 const failureWindowMs = 15 * 60 * 1000;
 const failures = new Map<string, number[]>();
 
@@ -74,6 +75,10 @@ function randomOpaque(): string {
   return randomBytes(32).toString("base64url");
 }
 
+function csrfForSession(rawToken: string): string {
+  return createHmac("sha256", CSRF_SECRET).update(`toktickit-csrf:${rawToken}`).digest("base64url");
+}
+
 function parseCookies(header: string | undefined): Record<string, string> {
   if (!header) return {};
   return Object.fromEntries(header.split(";").flatMap((part) => {
@@ -94,7 +99,7 @@ export function clearSessionCookie(res: Response): void {
 
 export async function createSession(userId: number) {
   const rawToken = randomOpaque();
-  const rawCsrfToken = randomOpaque();
+  const rawCsrfToken = csrfForSession(rawToken);
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_MS);
   const session = await getPrisma().session.create({
     data: {
@@ -107,12 +112,9 @@ export async function createSession(userId: number) {
   return { session, rawToken, rawCsrfToken, expiresAt };
 }
 
-export async function rotateCsrf(sessionId: number): Promise<string> {
-  const rawCsrfToken = randomOpaque();
-  await getPrisma().session.update({
-    where: { id: sessionId },
-    data: { csrfTokenHash: hashOpaque(rawCsrfToken), lastSeenAt: new Date() },
-  });
+export async function getCsrfToken(sessionId: number, rawToken: string): Promise<string> {
+  const rawCsrfToken = csrfForSession(rawToken);
+  await getPrisma().session.update({ where: { id: sessionId }, data: { lastSeenAt: new Date() } });
   return rawCsrfToken;
 }
 

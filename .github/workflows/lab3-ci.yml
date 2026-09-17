@@ -34,6 +34,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/toktickit_test?schema=public
       NODE_ENV: test
       LAB3_SEED_INITIAL_PASSWORD: local-only-password
+      CSRF_SECRET: local-only-csrf-secret
     steps:
       - name: Checkout
         uses: actions/checkout@v4

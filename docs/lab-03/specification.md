@@ -230,8 +230,10 @@ The API uses JSON success and error envelopes defined in api-spec.md. Authentica
 | Attachment access | Requester owns upload/remove/download; IT Staff and Administrator may read metadata/download on operational detail; no staff upload/remove | Pending peer approval |
 | API error envelope | Shared code/message/fields/correlationId structure | Pending peer approval |
 
-All decisions above were reviewed and approved before feature implementation. Future changes that materially affect
-authorization or migration must be recorded in a follow-up review before the affected implementation is merged.
+The first four decisions above were reviewed and approved before the authentication foundation was implemented.
+The remaining six decisions stay pending and gate their respective Staff, UI, and resource-policy follow-ups.
+Future changes that materially affect authorization or migration must be recorded in a follow-up review before the
+affected implementation is merged.
 
 ## 12. Product Definition of Done
 
