@@ -33,6 +33,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/toktickit_test?schema=public
       NODE_ENV: test
+      LAB3_SEED_INITIAL_PASSWORD: local-only-password
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,10 +45,8 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - name: Install server dependencies
         run: npm ci
-      - name: Apply current migrations
-        run: npx prisma migrate deploy
-      - name: Seed current baseline fixtures
-        run: npm run prisma:seed
+      - name: Apply Lab 3 upgrade and seed fixtures
+        run: npm run lab3:upgrade
       - name: Build server
         run: npm run build
       - name: Run server tests

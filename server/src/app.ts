@@ -1,17 +1,37 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
 import { createHash, randomUUID } from "node:crypto";
-import { RequestedPriority } from "@prisma/client";
+import { ITPriority, RequestedPriority } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 import multer from "multer";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  AuthenticatedRequest,
+  clearLoginFailures,
+  clearSessionCookie,
+  createSession,
+  errorBody,
+  hashPassword,
+  isRateLimited,
+  loginFailureKey,
+  normalizeEmail,
+  recordLoginFailure,
+  requireCsrf,
+  requireSession,
+  rotateCsrf,
+  safeUser,
+  setSessionCookie,
+  validatePassword,
+  verifyPassword,
+} from "./auth.js";
 
 // The Express app is exported separately from app.listen() (see index.ts) so
 // Supertest can import `app` without opening a port. Do not merge these files.
 export const app = express();
 
-app.use(cors());          // already wired: lets the Vite dev server call this API
+const clientOrigin = process.env.CLIENT_ORIGIN ?? "http://127.0.0.1:5173";
+app.use(cors({ origin: clientOrigin, credentials: true }));
 app.use(express.json());
 
 const attachmentRoot = path.resolve(process.cwd(), "storage", "attachments");
@@ -47,6 +67,91 @@ function parseAttachmentUpload(req: Request, res: Response, next: () => void) {
 // ---------------------------------------------------------------------------
 app.get("/api/health", (_req: Request, res: Response) => {
   res.status(200).json({ status: "ok", service: "TokTickIT API" });
+});
+
+app.post("/api/auth/login", async (req: Request, res: Response) => {
+  const email = normalizeEmail(req.body?.email);
+  const password = req.body?.password;
+  if (!email || typeof password !== "string" || !password) {
+    res.status(400).json(errorBody("VALIDATION_ERROR", "Email and password are required", { email: "A valid email is required", password: "Password is required" }));
+    return;
+  }
+
+  const key = loginFailureKey(req, email);
+  if (isRateLimited(key)) {
+    res.setHeader("Retry-After", "900");
+    res.status(429).json(errorBody("RATE_LIMITED", "Too many login attempts. Try again later."));
+    return;
+  }
+
+  try {
+    const user = await getPrisma().requesterUser.findUnique({ where: { email } });
+    const valid = Boolean(user?.isActive && await verifyPassword(user.passwordHash, password));
+    if (!valid || !user) {
+      recordLoginFailure(key);
+      res.status(401).json(errorBody("INVALID_CREDENTIALS", "Invalid email or password"));
+      return;
+    }
+    clearLoginFailures(key);
+    const session = await createSession(user.id);
+    setSessionCookie(res, session.rawToken);
+    res.status(200).json({ data: { user: safeUser(user), mustChangePassword: user.mustChangePassword, csrfToken: session.rawCsrfToken } });
+  } catch {
+    res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to complete login"));
+  }
+});
+
+app.get("/api/auth/me", requireSession, async (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  if (!auth) return;
+  try {
+    const csrfToken = await rotateCsrf(auth.session.id);
+    res.status(200).json({ data: { user: safeUser(auth.user), mustChangePassword: auth.user.mustChangePassword, csrfToken } });
+  } catch {
+    res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to load the current user"));
+  }
+});
+
+app.post("/api/auth/logout", requireSession, requireCsrf, async (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  if (!auth) return;
+  try {
+    await getPrisma().session.update({ where: { id: auth.session.id }, data: { revokedAt: new Date() } });
+    clearSessionCookie(res);
+    res.status(204).send();
+  } catch {
+    res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to log out"));
+  }
+});
+
+app.post("/api/auth/change-password", requireSession, requireCsrf, async (req: Request, res: Response) => {
+  const auth = (req as AuthenticatedRequest).auth;
+  if (!auth) return;
+  const { currentPassword, newPassword, confirmPassword } = req.body ?? {};
+  const fields = validatePassword(newPassword, confirmPassword);
+  if (typeof currentPassword !== "string" || !currentPassword) fields.currentPassword = "Current password is required";
+  if (Object.keys(fields).length) {
+    res.status(400).json(errorBody("VALIDATION_ERROR", "Password validation failed", fields));
+    return;
+  }
+  if (!await verifyPassword(auth.user.passwordHash, currentPassword)) {
+    res.status(401).json(errorBody("INVALID_CREDENTIALS", "Invalid current password"));
+    return;
+  }
+  try {
+    const passwordHash = await hashPassword(newPassword);
+    await getPrisma().$transaction(async (tx) => {
+      await tx.requesterUser.update({ where: { id: auth.user.id }, data: { passwordHash, mustChangePassword: false } });
+      await tx.session.update({ where: { id: auth.session.id }, data: { revokedAt: new Date() } });
+      await tx.session.updateMany({ where: { userId: auth.user.id, revokedAt: null }, data: { revokedAt: new Date() } });
+    });
+    const rotated = await createSession(auth.user.id);
+    const updatedUser = await getPrisma().requesterUser.findUniqueOrThrow({ where: { id: auth.user.id } });
+    setSessionCookie(res, rotated.rawToken);
+    res.status(200).json({ data: { user: safeUser(updatedUser), mustChangePassword: false, csrfToken: rotated.rawCsrfToken } });
+  } catch {
+    res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to change password"));
+  }
 });
 
 app.get("/api/categories", async (_req: Request, res: Response) => {
@@ -197,6 +302,7 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
           summary: validSummary,
           description: validDescription,
           requestedPriority: requestedPriority as RequestedPriority,
+          itPriority: requestedPriority as ITPriority,
         },
         select: { id: true },
       });
