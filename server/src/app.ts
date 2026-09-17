@@ -173,7 +173,7 @@ app.get("/api/requesters", async (req: Request, res: Response) => {
     // active=false intentionally means no activity filter for future staff views.
     const active = req.query.active === undefined || req.query.active === "true";
     const requesters = await getPrisma().requesterUser.findMany({
-      where: active ? { isActive: true } : undefined,
+      where: active ? { isActive: true, role: "REQUESTER" } : { role: "REQUESTER" },
       select: { id: true, name: true, isActive: true },
       orderBy: [{ name: "asc" }, { id: "asc" }],
     });
