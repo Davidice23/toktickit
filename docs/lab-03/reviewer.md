@@ -10,10 +10,10 @@ This is the initial review record for the Lab 3 engineering contract. No impleme
 | --- | --- |
 | Contract branch | docs/lab3-engineering-contract |
 | Base branch | lab3-staging |
-| Contract PR | Pending; not created yet |
+| Contract PR | [PR #36](https://github.com/Davidice23/toktickit/pull/36) |
 | Author | Wachirawit Photchamnian - 67070505206 |
 | Reviewer placeholder | Sxr1n |
-| Review state | Pending |
+| Review state | Awaiting Sxr1n peer review |
 | Implementation started | No |
 | Approval | Pending |
 
@@ -30,7 +30,7 @@ This is the initial review record for the Lab 3 engineering contract. No impleme
 
 | Date | PR/link | Reviewer | Comment or requested change | Author response | Approval |
 | --- | --- | --- | --- | --- | --- |
-| Pending | Pending | Sxr1n | Pending contract review | Pending | Pending |
+| 2026-09-17 | [PR #36](https://github.com/Davidice23/toktickit/pull/36) | Sxr1n | Review requested; contract review not yet submitted | Pending | Pending |
 
 ## Required completion fields
 
