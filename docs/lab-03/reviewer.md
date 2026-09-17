@@ -31,6 +31,7 @@ This is the initial review record for the Lab 3 engineering contract. No impleme
 | Date | PR/link | Reviewer | Comment or requested change | Author response | Approval |
 | --- | --- | --- | --- | --- | --- |
 | 2026-09-17 | [PR #36](https://github.com/Davidice23/toktickit/pull/36) | Sxr1n | Review requested; contract review not yet submitted | Pending | Pending |
+| 2026-09-17 | [PR #38](https://github.com/Davidice23/toktickit/pull/38) | Sxr1n | Test Harness/CI review requested; all three CI jobs passed | Pending | Pending |
 
 ## Required completion fields
 
