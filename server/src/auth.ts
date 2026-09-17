@@ -19,8 +19,8 @@ export type AuthContext = {
 
 export type AuthenticatedRequest = Request & { auth?: AuthContext };
 
-function errorBody(code: string, message: string, fields?: Record<string, string>) {
-  return { error: { code, message, ...(fields ? { fields } : {}) } };
+function errorBody(code: string, message: string, fields?: Record<string, string>, correlationId?: string) {
+  return { error: { code, message, ...(fields ? { fields } : {}), ...(correlationId ? { correlationId } : {}) } };
 }
 
 export function normalizeEmail(value: unknown): string | null {
