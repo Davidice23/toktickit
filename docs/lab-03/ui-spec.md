@@ -23,7 +23,7 @@ The authenticated shell contains:
 
 - TokTickIT brand and consistent header.
 - Current user's name and role badge.
-- Role-specific navigation only.
+- Role-specific navigation only; an Administrator sees both User Management and the operational Ticket Queue/Detail because the authorization matrix grants both capabilities.
 - Logout action.
 - Visible loading, session-expired, and failure states.
 - Main landmark, ordered headings, keyboard-visible focus, and responsive navigation.
@@ -159,6 +159,7 @@ At tablet width, preserve required fields while allowing comfortable wrapping. A
 - Back to Queue action.
 - Header with Ticket Number, status badge, priority badges, owner, and last updated.
 - Read-only Requester, category, related system, summary, description, timestamps, and existing Attachment groups.
+- IT Staff and Administrator may download existing Attachments from the detail view; upload/remove controls remain available only on the owning Requester screens.
 - Operational controls grouped separately:
   - Claim/assign/reassign owner.
   - IT Priority.
@@ -171,6 +172,7 @@ At tablet width, preserve required fields while allowing comfortable wrapping. A
 
 - Only permitted fields are editable.
 - Invalid transitions, unavailable owner, conflict, and API failure are visible and actionable.
+- Status controls show the exact confirmation/reason prompts for Cancelled, Resolved, Closed, and Reopened, and assignment controls explain claim conflict and the New/Open-only unassignment rule.
 - Notes render as text and never as HTML.
 - Attachment controls follow the API authorization matrix.
 - Administrator has the same operational Ticket controls as IT Staff under the approved matrix; User Management remains Administrator-only.

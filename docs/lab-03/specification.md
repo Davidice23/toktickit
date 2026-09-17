@@ -8,7 +8,7 @@ Replace the Lab 2 Development Requester selector with server-verified authentica
 
 ## 2. Stakeholder interpretation
 
-The stakeholder needs real users instead of a temporary identity selector. A user signs in with an email and password, changes an initial password before entering the normal application, and sees only the navigation and actions permitted by the assigned role. Requesters manage their own requests. IT Staff triage and work tickets through a controlled workflow. Administrators manage accounts without becoming an unrestricted ticket operator. Every protected operation is enforced by the backend; hidden UI controls are only usability feedback.
+The stakeholder needs real users instead of a temporary identity selector. A user signs in with an email and password, changes an initial password before entering the normal application, and sees only the navigation and actions permitted by the assigned role. Requesters manage their own requests. IT Staff and Administrators triage and work Tickets through the explicitly listed operational matrix; Administrators also manage accounts but do not gain operations outside that matrix. Every protected operation is enforced by the backend; hidden UI controls are only usability feedback.
 
 ## 3. Scope
 
@@ -42,6 +42,8 @@ Each user has exactly one role. An inactive user cannot authenticate. A role che
 | Change an initial password | Yes | Yes | Yes |
 | Create and manage own Tickets | Own only | No | No |
 | Read Staff Queue and operational detail | No | Yes | Yes |
+| Attachment metadata/download on operational detail | No | Yes | Yes |
+| Upload/remove Attachments | Own Tickets | No | No |
 | Assign/reassign Ticket | No | Yes | Yes |
 | Set IT Priority | No | Yes | Yes |
 | Change Ticket status | No | Yes | Yes |
@@ -116,7 +118,9 @@ Administrator has the operational staff capability required by the Lab contract:
 - BR-15: Requested Priority is submitted by the Requester and remains distinct from IT Priority.
 - BR-16: IT Priority initially copies Requested Priority when the Ticket is created and can then be changed only by IT Staff or Administrator.
 - BR-17: The required statuses are New, Open, In Progress, Waiting for Requester, Resolved, Closed, Reopened, and Cancelled.
-- BR-18: Status changes must follow the approved transition matrix; invalid transitions return a validation error and do not mutate the Ticket.
+- BR-18: Status changes must follow the approved transition matrix; invalid transitions return 409 INVALID_TRANSITION and do not mutate the Ticket.
+- BR-18a: Status transitions to Cancelled require confirmation and a non-blank reason; transitions to Resolved or Closed require confirmation; transitions to Reopened require a non-blank reason.
+- BR-18b: A Ticket must have an active IT Staff or Administrator owner before entering In Progress or Resolved. Claim succeeds only when the Ticket is unassigned; a concurrent or already-owned claim returns 409 CLAIM_CONFLICT. Unassignment is allowed only from New or Open.
 - BR-19: A Requester may indicate that the problem appears resolved but cannot formally set Resolved or Closed.
 - BR-20: IT Staff and Administrator remain responsible for formal resolution and closure.
 - BR-21: Public Comments are visible to the owning Requester, IT Staff, and Administrator.
@@ -134,16 +138,16 @@ Administrator has the operational staff capability required by the Lab contract:
 
 ### Status transition matrix
 
-| Current | Allowed next status | Role |
-| --- | --- | --- |
-| New | Open, Cancelled | IT Staff / Administrator |
-| Open | In Progress, Waiting for Requester, Cancelled | IT Staff / Administrator |
-| In Progress | Waiting for Requester, Resolved, Cancelled | IT Staff / Administrator |
-| Waiting for Requester | In Progress, Resolved, Cancelled | IT Staff / Administrator |
-| Resolved | Closed, Reopened | IT Staff / Administrator |
-| Closed | Reopened | IT Staff / Administrator |
-| Reopened | In Progress, Cancelled | IT Staff / Administrator |
-| Cancelled | Reopened | IT Staff / Administrator |
+| Current | Allowed next status | Role | Conditions |
+| --- | --- | --- | --- |
+| New | Open, Cancelled | IT Staff / Administrator | Cancelled requires confirmation and reason |
+| Open | In Progress, Waiting for Requester, Cancelled | IT Staff / Administrator | In Progress requires active owner; Cancelled requires confirmation and reason |
+| In Progress | Waiting for Requester, Resolved, Cancelled | IT Staff / Administrator | Resolved requires active owner and confirmation; Cancelled requires confirmation and reason |
+| Waiting for Requester | In Progress, Resolved, Cancelled | IT Staff / Administrator | In Progress/Resolved require active owner; Resolved requires confirmation; Cancelled requires confirmation and reason |
+| Resolved | Closed, Reopened | IT Staff / Administrator | Closed requires confirmation; Reopened requires reason |
+| Closed | Reopened | IT Staff / Administrator | Reopened requires reason |
+| Reopened | In Progress, Cancelled | IT Staff / Administrator | In Progress requires active owner; Cancelled requires confirmation and reason |
+| Cancelled | Reopened | IT Staff / Administrator | Reopened requires reason |
 
 ## 7. Data model and migration decision
 
@@ -165,12 +169,13 @@ Foreign keys shall use restrictive deletion. User deletion is not supported. Rol
 ### Migration sequence
 
 1. Add User role, password, active, and first-login fields while preserving existing rows.
-2. Rename or safely map RequesterUser to User while preserving primary keys.
+2. Rename the existing RequesterUser table to User with an explicit transactional SQL rename, preserving primary keys; no copy-and-drop alternative is in scope.
 3. Re-point Ticket requester relation without rewriting requester IDs.
 4. Add owner, resolution, comments, notes, sessions, indexes, and expanded status enum.
-5. Backfill existing Requesters with local-only initial password hashes and mustChangePassword.
-6. Seed additional IT Staff, Administrator, realistic Tickets, comments, and notes.
-7. Verify migration on a clean test database and verify existing Lab 2 data remains queryable.
+5. Backfill existing Requesters with local-only initial password hashes from `LAB3_SEED_INITIAL_PASSWORD`; set mustChangePassword=true and abort the transaction if any existing User lacks a credential.
+6. Backfill every existing Ticket.itPriority from requestedPriority before enforcing non-null; preserve Ticket, Attachment, and ownership IDs/rows.
+7. Seed additional IT Staff, Administrator, realistic Tickets, comments, and notes.
+8. Verify migration on a clean test database and verify existing Lab 2 data remains queryable; any assertion failure rolls back and prevents application startup.
 
 ## 8. Seed requirements
 
@@ -192,10 +197,10 @@ The API uses JSON success and error envelopes defined in api-spec.md. Authentica
 | AC-06 | Requester Ticket and Attachment APIs use authenticated ownership, even when a spoofed requesterId/header is supplied. | Authorization API, regression |
 | AC-07 | Existing Lab 2 requester creation, list, detail, and Attachment behavior continues for authenticated Requesters. | Regression API/UI/E2E |
 | AC-08 | Requesters can append Public Comments and indicate problem resolution but cannot formally resolve or close a Ticket. | API/UI |
-| AC-09 | Staff Queue supports documented search, filters, sorting, pagination, ownership, badges, and safe states. | Queue API/UI/E2E |
-| AC-10 | Staff can open Ticket Detail and see permitted Ticket, Attachment, comment, note, ownership, priority, and status information. | Detail API/UI |
-| AC-11 | Staff can claim/reassign only to an allowed active operational user. | Detail API |
-| AC-12 | Staff can update IT Priority and only valid status transitions. | Detail API/UI |
+| AC-09 | IT Staff and Administrators can use the Staff Queue with documented search, filters, sorting, pagination, ownership, badges, and safe states. | Queue API/UI/E2E |
+| AC-10 | IT Staff and Administrators can open Ticket Detail and see permitted Ticket, Attachment, comment, note, ownership, priority, and status information. | Detail API/UI |
+| AC-11 | IT Staff and Administrators can claim/reassign only to an allowed active operational user. | Detail API |
+| AC-12 | IT Staff and Administrators can update IT Priority and only valid status transitions. | Detail API/UI |
 | AC-13 | Public Comments are shared and Internal Notes are restricted and visually distinct. | Comments API/UI |
 | AC-14 | Empty, validation, forbidden, not-found, conflict, and unexpected failure states are safe and actionable. | API/UI/E2E |
 | AC-15 | Administrator can list/search users and optionally filter by role. | Admin API/UI |
@@ -213,12 +218,15 @@ The API uses JSON success and error envelopes defined in api-spec.md. Authentica
 
 | Decision | Proposed choice | Status |
 | --- | --- | --- |
-| Session mechanism | Opaque server-side session cookie, hashed token in Session table | Pending peer approval |
+| Session mechanism | Opaque server-side session cookie, hashed token in Session table, maximum lifetime 8 hours | Pending peer approval |
 | Cookie/CSRF | HttpOnly SameSite cookie, explicit origin CORS, CSRF header for mutations | Pending peer approval |
-| Password hashing | Strong one-way hash with cost documented in implementation | Pending peer approval |
+| Password hashing | Argon2id, memory 65536 KiB, iterations 3, parallelism 1; password length 12-128 characters | Pending peer approval |
 | Administrator ticket access | Full operational Ticket/queue/comment/note capability plus User Management | Pending peer approval |
 | Staff assignment | Only active IT Staff or Administrator can be an owner; Requesters cannot own operational assignment | Pending peer approval |
-| Login throttling | Bounded delay or rate-limit policy with no credential logging | Pending peer approval |
+| Login throttling | Five failures per normalized-email + IP in 15 minutes, then 429 with Retry-After: 900; no credential logging | Pending peer approval |
+| Queue pagination | Page sizes 10, 20, 50; default 20; default sort updatedAt desc, id desc | Pending peer approval |
+| Comment/note limits | Public Comment 1-2,000 characters; Internal Note 1-4,000 characters after trim | Pending peer approval |
+| Attachment access | Requester owns upload/remove/download; IT Staff and Administrator may read metadata/download on operational detail; no staff upload/remove | Pending peer approval |
 | API error envelope | Shared code/message/fields/correlationId structure | Pending peer approval |
 
 No implementation issue may begin while a decision above materially affects the authorization or migration contract and remains unresolved.

@@ -100,6 +100,11 @@ Additional planned files (allowed alongside the minimum Lab set):
 | API-24 | Integration | BR-31, BR-32, AC-24 | Migration preserves IDs/data | server/tests/lab-03/migration.integration.test.ts | Planned / Not run |
 | API-25 | Integration | BR-32, AC-24 | Seed runs twice without duplicate users, Tickets, comments, notes, or references | server/tests/lab-03/seed.integration.test.ts | Planned / Not run |
 | API-26 | Authorization | FR-12-FR-17, AC-09-AC-13 | Administrator can use the operational queue, assignment, priority, status, comments, and notes allowed by the matrix | server/tests/lab-03/authorization.api.test.ts | Planned / Not run |
+| API-27 | Security | BR-04, AC-02 | Login throttles after five failures per email/IP window and returns 429 with Retry-After | server/tests/lab-03/auth.api.test.ts | Planned / Not run |
+| API-28 | Migration | BR-15, BR-31, AC-24 | Existing Tickets receive IT Priority copied from Requested Priority without changing IDs or ownership | server/tests/lab-03/migration.integration.test.ts | Planned / Not run |
+| API-29 | Security | BR-28, AC-17 | Administrator deactivation revokes existing sessions and blocks subsequent access | server/tests/lab-03/users-admin.api.test.ts | Planned / Not run |
+| API-30 | API | BR-23, AC-13 | Public Comments and Internal Notes have no edit/delete endpoint and remain append-only | server/tests/lab-03/comments-notes.api.test.ts | Planned / Not run |
+| API-31 | Authorization | FR-22, AC-10 | Requester upload/remove versus Staff/Administrator metadata/download Attachment policy | server/tests/lab-03/authorization.api.test.ts | Planned / Not run |
 | UI-01 | UI | FR-01, AC-01, AC-02 | Login labels, validation, busy, safe failure, success routing | client/tests/lab-03/Login.test.tsx | Planned / Not run |
 | UI-02 | UI | FR-04, AC-03 | Change Password validation, busy, failure, continuation | client/tests/lab-03/ChangePassword.test.tsx | Planned / Not run |
 | UI-03 | UI | FR-06, AC-04, AC-05 | Authenticated shell, role navigation, logout, direct-route guard | client/tests/lab-03/Login.test.tsx | Planned / Not run |
@@ -113,6 +118,7 @@ Additional planned files (allowed alongside the minimum Lab set):
 | E2E-02 | E2E | AC-09-AC-14 | Staff queue/detail, assignment, priority, status, comments, notes, failure | e2e/lab-03/staff-ticket-flow.spec.ts | Planned / Not run |
 | E2E-03 | E2E | AC-15-AC-21 | Administrator user lifecycle and safety rules | e2e/lab-03/user-administration.spec.ts | Planned / Not run |
 | E2E-04 | E2E/visual | AC-22, AC-23 | Desktop/tablet/mobile screenshots and keyboard/accessibility checks | e2e/lab-03/responsive-visual.spec.ts | Planned / Not run |
+| E2E-05 | E2E/regression | AC-06-AC-08 | Requester creates/lists/opens Tickets, uses Attachments/comments, and cannot use staff-only operations | e2e/lab-03/requester-regression.spec.ts | Planned / Not run |
 
 ## 5. Acceptance-criterion traceability
 
@@ -122,19 +128,19 @@ Additional planned files (allowed alongside the minimum Lab set):
 | AC-02 | API-02, UI-01, E2E-01 |
 | AC-03 | API-04, UI-02, E2E-01 |
 | AC-04 | API-03, UI-03, E2E-01 |
-| AC-05 | API-23, UI-03, E2E-01 |
-| AC-06 | API-06, API-08 |
-| AC-07 | API-07, UI-07, E2E-02 |
-| AC-08 | API-16, UI-07, E2E-02 |
+| AC-05 | API-06, API-08, API-23, API-26, UI-03, E2E-01, E2E-02, E2E-03 |
+| AC-06 | API-06, API-08, API-31, E2E-05 |
+| AC-07 | API-07, UI-07, E2E-05 |
+| AC-08 | API-16, UI-07, E2E-05 |
 | AC-09 | API-09, UI-04, E2E-02 |
-| AC-10 | API-10, UI-05, E2E-02 |
+| AC-10 | API-10, API-31, UI-05, E2E-02 |
 | AC-11 | API-11, UI-05, E2E-02 |
 | AC-12 | API-12, API-13, UI-05, E2E-02 |
-| AC-13 | API-14, API-15, UI-05, E2E-02 |
+| AC-13 | API-14, API-15, API-30, UI-05, E2E-02 |
 | AC-14 | API-20, UI-01, UI-04, UI-05, UI-06, E2E-02, E2E-03 |
 | AC-15 | API-17, UI-06, E2E-03 |
 | AC-16 | API-18, UI-06, E2E-03 |
-| AC-17 | API-19, UI-06, E2E-03 |
+| AC-17 | API-19, API-29, UI-06, E2E-03 |
 | AC-18 | API-20, UI-06, E2E-03 |
 | AC-19 | API-21, UI-02, E2E-03 |
 | AC-20 | API-22, UI-06, E2E-03 |
@@ -170,7 +176,7 @@ Focused commands may be used during TDD, but final evidence must include complet
 
 - [ ] All planned server tests pass on final main.
 - [ ] All planned client tests pass on final main.
-- [ ] All three mandated E2E files pass on final main.
+- [ ] All three mandated E2E files and the planned Requester regression/responsive E2E files pass on final main.
 - [ ] Migration applies to an empty test database and preserves a Lab 2 fixture database.
 - [ ] Seed runs twice without duplicate users, Tickets, comments, notes, or reference rows.
 - [ ] Direct unauthorized API calls are covered, not only hidden UI controls.

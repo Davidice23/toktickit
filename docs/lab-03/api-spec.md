@@ -47,7 +47,7 @@ fields is present for field-addressable validation. correlationId is present for
 - The server generates a cryptographically random opaque session token.
 - Only a one-way token hash is stored in Session.
 - The cookie name is toktickit_session.
-- The cookie is HttpOnly, SameSite=Lax for local development, Secure in HTTPS environments, path /, and has a documented maximum lifetime.
+- The cookie is HttpOnly, SameSite=Lax for local development, Secure in HTTPS environments, path /, and expires after 8 hours of maximum session lifetime.
 - Session lookup validates token hash, user active state, revokedAt, and expiresAt.
 - Logout sets revokedAt and clears the cookie.
 - Deactivation, initial-password reset, and password change revoke affected sessions according to the approved decision.
@@ -66,9 +66,9 @@ fields is present for field-addressable validation. correlationId is present for
 
 - Email is normalized before lookup.
 - Passwords are never stored or logged in plaintext.
-- New and changed passwords must meet the documented minimum/maximum length, confirmation, and non-whitespace rules.
+- New and changed passwords must be 12-128 characters, contain at least one non-whitespace character, match confirmation, and be hashed with Argon2id (memory 65536 KiB, iterations 3, parallelism 1).
 - Invalid credentials and inactive accounts use the same public 401 response.
-- Login failure throttling or bounded delay is applied without revealing account existence.
+- Login failures are rate-limited to five attempts per normalized-email + IP pair in 15 minutes; the next failure returns 429 RATE_LIMITED with Retry-After: 900. The policy never reveals account existence and never logs credentials.
 - A valid login with mustChangePassword true returns a limited session and user object but normal application APIs return PASSWORD_CHANGE_REQUIRED until the password change succeeds.
 
 ## 3. Resource shapes
@@ -130,7 +130,7 @@ Success 200:
 
     { "data": { "user": User, "mustChangePassword": true, "csrfToken": "opaque-token" } }
 
-The response sets the session cookie. Validation errors use 400 VALIDATION_ERROR. Invalid or inactive credentials use 401 INVALID_CREDENTIALS. Excessive failures may use 429 RATE_LIMITED. No response distinguishes a missing, inactive, or wrong-password account.
+The response sets the session cookie. Validation errors use 400 VALIDATION_ERROR. Invalid or inactive credentials use 401 INVALID_CREDENTIALS. After five failures for the same normalized-email + IP pair within 15 minutes, the response is 429 RATE_LIMITED with Retry-After: 900. No response distinguishes a missing, inactive, or wrong-password account.
 
 ### GET /api/auth/me
 
@@ -150,7 +150,7 @@ Requires a valid session and CSRF token. The normal request is:
       "confirmPassword": "new-local-password"
     }
 
-The server validates password rules, stores only the new hash, clears mustChangePassword, rotates or revokes the session as documented, and returns 200 with the updated User and a new CSRF token. Invalid input returns 400. Incorrect current password returns 401 INVALID_CREDENTIALS. A revoked session returns 401.
+The server validates password rules, stores only the new hash, clears mustChangePassword, revokes the old session, creates a rotated session, and returns 200 with the updated User and a new CSRF token. Invalid input returns 400. Incorrect current password returns 401 INVALID_CREDENTIALS. A revoked session returns 401.
 
 ## 5. Authenticated Requester endpoints
 
@@ -186,7 +186,7 @@ Supported query parameters:
 | sortBy | updatedAt, ticketDate, ticketNumber, summary | updatedAt |
 | sortDirection | asc, desc | desc |
 | page | positive one-based integer | 1 |
-| pageSize | 10, 20, 50 | 10 |
+| pageSize | 10, 20, 50 | 20 |
 
 The server adds the authenticated user ownership predicate. Success 200 returns data and page metadata. Invalid queries return 400. No other user's Ticket appears.
 
@@ -197,10 +197,10 @@ Returns an owned Ticket detail with permitted Attachment metadata and Public Com
 ### Attachment endpoints
 
 - POST /api/tickets/:ticketId/attachments: multipart files, CSRF, active owned Ticket, existing Lab 2 type/signature/size/count rules.
-- GET /api/tickets/:ticketId/attachments/:attachmentId/download: active owned file download only.
+- GET /api/tickets/:ticketId/attachments/:attachmentId/download: active owned file download only for a Requester.
 - DELETE /api/tickets/:ticketId/attachments/:attachmentId: JSON reason, CSRF, explicit soft removal.
 
-Attachments preserve the existing Lab 2 lifecycle and never leak storage paths. Invalid file, ownership, and unavailable-file failures use safe 400/404/413 responses.
+Attachments preserve the existing Lab 2 lifecycle and never leak storage paths. Staff and Administrator detail responses include Attachment metadata, and `GET /api/staff/tickets/:ticketId/attachments/:attachmentId/download` permits them to download an existing non-removed file. Staff and Administrator cannot upload or remove Attachments. Invalid file, ownership, and unavailable-file failures use safe 400/404/413 responses.
 
 ### Public comments and requester resolution
 
@@ -226,7 +226,7 @@ Supported query parameters:
 | sortBy | updatedAt, createdAt, ticketNumber, status, itPriority, owner |
 | sortDirection | asc, desc |
 | page | positive one-based integer |
-| pageSize | documented bounded page size |
+| pageSize | 10, 20, 50 (default 20) |
 
 Success 200 returns queue rows and metadata: page, pageSize, totalItems, totalPages, hasPreviousPage, and hasNextPage. Invalid parameters return 400 INVALID_QUERY. Empty data is a valid 200 response.
 
@@ -240,7 +240,7 @@ Request:
 
     { "ownerId": 8 }
 
-ownerId may be null for unassignment if the approved workflow permits it. The target must be an active IT Staff or Administrator user. The caller must be IT Staff or Administrator. Invalid role, inactive target, or missing Ticket returns 400/404. Success 200 returns the updated owner.
+The target must be an active IT Staff or Administrator user. The caller must be IT Staff or Administrator. `ownerId: null` is permitted only when the Ticket is New or Open; otherwise the server returns 409 OWNER_REQUIRED. Claim is represented by sending the current caller as ownerId and succeeds only when the Ticket is unassigned; an already-owned or concurrently claimed Ticket returns 409 CLAIM_CONFLICT. Invalid role, inactive target, or missing Ticket returns 400/404. Success 200 returns the updated owner.
 
 ### PATCH /api/staff/tickets/:ticketId/priority
 
@@ -256,7 +256,7 @@ Request:
 
     { "status": "RESOLVED", "confirmation": true }
 
-The server validates the transition matrix, required confirmation where documented, and role. Invalid transitions return 409 INVALID_TRANSITION or 400 VALIDATION_ERROR without mutation. Success 200 returns the updated status.
+The server validates the transition matrix, role, and the exact conditions in the Specification: Cancelled requires `confirmation: true` and a non-blank `reason`; Resolved and Closed require `confirmation: true`; Reopened requires a non-blank `reason`; In Progress and Resolved require an active owner. Invalid transitions return 409 INVALID_TRANSITION; missing conditions return 400 VALIDATION_ERROR; neither response mutates the Ticket. Success 200 returns the updated status.
 
 ## 7. Staff comments and notes
 
@@ -265,7 +265,7 @@ The server validates the transition matrix, required confirmation where document
 - GET /api/staff/tickets/:ticketId/internal-notes: IT Staff and Administrator; no Requester access.
 - POST /api/staff/tickets/:ticketId/internal-notes: IT Staff or Administrator; JSON body, CSRF, 201 response.
 
-Blank or whitespace-only body returns 400 CONTENT_REQUIRED. Content over the documented maximum returns 400 CONTENT_TOO_LONG. Entries are append-only and server-author/time stamped. A Requester never receives note content, including in error responses.
+Public Comment body is trimmed and limited to 2,000 characters; Internal Note body is trimmed and limited to 4,000 characters. Blank or whitespace-only body returns 400 CONTENT_REQUIRED. Content over the applicable maximum returns 400 CONTENT_TOO_LONG. Entries are append-only: no edit or delete endpoint exists, and each entry is server-author/time stamped. A Requester never receives note content, including in error responses.
 
 ## 8. Administrator endpoints
 
@@ -310,7 +310,9 @@ No user deletion, bulk operation, import/export, email delivery, or multiple-rol
 | Auth endpoints | Login only | Own session | Own session | Own session |
 | Requester Ticket routes | 401 | Own only | 403 | 403 |
 | Staff queue/detail | 401 | 403 | Full | Full |
-| Assignment/priority/status | 401 | 403 | Full | 403 |
+| Assignment/priority/status | 401 | 403 | Full | Full |
+| Attachment metadata/download on Staff detail | 401 | 403 | Full | Full |
+| Attachment upload/remove | 401 | Own Ticket | 403 | 403 |
 | Public Comments | 401 | Own Ticket | Full | Full |
 | Internal Notes read | 401 | 403 | Full | Full |
 | Internal Notes create | 401 | 403 | Full | Full |
