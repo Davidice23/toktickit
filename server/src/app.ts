@@ -1,7 +1,7 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
 import { createHash, randomUUID } from "node:crypto";
-import { ITPriority, RequestedPriority } from "@prisma/client";
+import { ITPriority, RequestedPriority, TicketStatus } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 import multer from "multer";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
@@ -18,6 +18,8 @@ import {
   normalizeEmail,
   recordLoginFailure,
   requireCsrf,
+  requireNormalSession,
+  requireRoles,
   requireSession,
   getCsrfToken,
   safeUser,
@@ -169,15 +171,12 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
 
 app.get("/api/requesters", async (req: Request, res: Response) => {
   try {
-    // The Lab 2 selector uses active=true (or the safe active-only default).
-    // active=false intentionally means no activity filter for future staff views.
     const active = req.query.active === undefined || req.query.active === "true";
     const requesters = await getPrisma().requesterUser.findMany({
       where: active ? { isActive: true, role: "REQUESTER" } : { role: "REQUESTER" },
       select: { id: true, name: true, isActive: true },
       orderBy: [{ name: "asc" }, { id: "asc" }],
     });
-
     res.status(200).json(requesters);
   } catch {
     res.status(500).json({ error: "Unable to load Development Requesters" });
@@ -228,16 +227,16 @@ function normalizeText(value: unknown): string | null {
 }
 
 function validationError(res: Response, fields: Record<string, string>) {
-  return res.status(400).json({ error: "Validation failed", fields });
+  return res.status(400).json(errorBody("VALIDATION_ERROR", "Check the highlighted values and try again.", fields));
 }
 
-app.post("/api/tickets", async (req: Request, res: Response) => {
-  const requesterId = positiveInteger(req.header("X-Requester-Id"));
+app.post("/api/tickets", requireSession, requireNormalSession, requireRoles("REQUESTER"), requireCsrf, async (req: Request, res: Response) => {
+  const requesterId = (req as AuthenticatedRequest).auth?.user.id ?? null;
   const submissionKey = normalizeText(req.header("Idempotency-Key"));
   const body = req.body as Record<string, unknown>;
   const fields: Record<string, string> = {};
 
-  if (!requesterId) fields.requesterId = "X-Requester-Id must be a positive integer";
+  if (!requesterId) fields.requesterId = "Authenticated requester is required";
   if (!submissionKey || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionKey)) {
     fields.idempotencyKey = "Idempotency-Key must be a UUID";
   }
@@ -284,7 +283,7 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
       select: { submissionHash: true, id: true },
     });
     if (existing) {
-      if (existing.submissionHash !== submissionHash) return res.status(409).json({ error: "Idempotency-Key was already used with a different request" });
+      if (existing.submissionHash !== submissionHash) return res.status(409).json(errorBody("IDEMPOTENCY_CONFLICT", "Idempotency-Key was already used with a different request"));
       const replay = await prisma.ticket.findUnique({ where: { id: existing.id }, select: ticketDetailSelect });
       res.setHeader("Idempotent-Replay", "true");
       return res.status(200).json({ data: replay });
@@ -316,12 +315,12 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
   } catch (error) {
     const correlationId = randomUUID();
     console.error(`[${correlationId}] ticket creation failed`, error);
-    return res.status(500).json({ error: "Unable to create Ticket", correlationId });
+    return res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to create Ticket", undefined, correlationId));
   }
 });
 
-app.get("/api/tickets", async (req: Request, res: Response) => {
-  const requesterId = positiveInteger(req.header("X-Requester-Id"));
+app.get("/api/tickets", requireSession, requireNormalSession, requireRoles("REQUESTER"), async (req: Request, res: Response) => {
+  const requesterId = (req as AuthenticatedRequest).auth?.user.id ?? null;
   const allowedSorts = ["updatedAt", "ticketDate", "ticketNumber", "summary"];
   const sortBy = typeof req.query.sortBy === "string" ? req.query.sortBy : "updatedAt";
   const sortDirection = typeof req.query.sortDirection === "string" ? req.query.sortDirection : "desc";
@@ -329,7 +328,7 @@ app.get("/api/tickets", async (req: Request, res: Response) => {
   const pageSizeValue = req.query.pageSize === undefined ? 10 : positiveInteger(req.query.pageSize);
   const pageSizes = [10, 20, 50];
   const fields: Record<string, string> = {};
-  if (!requesterId) fields.requesterId = "X-Requester-Id must be a positive integer";
+  if (!requesterId) fields.requesterId = "Authenticated requester is required";
   if (!allowedSorts.includes(sortBy)) fields.sortBy = "Unsupported sort field";
   if (!["asc", "desc"].includes(sortDirection)) fields.sortDirection = "Sort direction must be asc or desc";
   if (!page) fields.page = "Page must be a positive integer";
@@ -342,7 +341,7 @@ app.get("/api/tickets", async (req: Request, res: Response) => {
   if (req.query.relatedSystemId !== undefined && !relatedSystemId) fields.relatedSystemId = "Related System ID must be a positive integer";
   const priority = req.query.requestedPriority;
   if (priority !== undefined && !Object.values(RequestedPriority).includes(priority as RequestedPriority)) fields.requestedPriority = "Unsupported priority";
-  if (req.query.status !== undefined && req.query.status !== "NEW") fields.status = "Unsupported status";
+  if (req.query.status !== undefined && (typeof req.query.status !== "string" || !Object.values(TicketStatus).includes(req.query.status as TicketStatus))) fields.status = "Unsupported status";
   if (Object.keys(fields).length) return validationError(res, fields);
 
   try {
@@ -368,14 +367,14 @@ app.get("/api/tickets", async (req: Request, res: Response) => {
   } catch (error) {
     const correlationId = randomUUID();
     console.error(`[${correlationId}] ticket list failed`, error);
-    return res.status(500).json({ error: "Unable to load Tickets", correlationId });
+    return res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to load Tickets", undefined, correlationId));
   }
 });
 
-app.get("/api/tickets/:ticketId", async (req: Request, res: Response) => {
-  const requesterId = positiveInteger(req.header("X-Requester-Id"));
+app.get("/api/tickets/:ticketId", requireSession, requireNormalSession, requireRoles("REQUESTER"), async (req: Request, res: Response) => {
+  const requesterId = (req as AuthenticatedRequest).auth?.user.id ?? null;
   const ticketId = positiveInteger(req.params.ticketId);
-  if (!requesterId || !ticketId) return res.status(400).json({ error: "Invalid Requester or Ticket ID" });
+  if (!requesterId || !ticketId) return res.status(404).json(errorBody("NOT_FOUND", "Ticket not found"));
   try {
     const ticket = await getPrisma().ticket.findFirst({
       where: { id: ticketId, requesterId },
@@ -385,33 +384,37 @@ app.get("/api/tickets/:ticketId", async (req: Request, res: Response) => {
           select: { id: true, ticketId: true, originalName: true, mimeType: true, sizeBytes: true, uploadedAt: true, removedAt: true, removedReason: true },
           orderBy: [{ uploadedAt: "asc" }, { id: "asc" }],
         },
+        publicComments: {
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: { id: true, ticketId: true, body: true, createdAt: true, author: { select: { id: true, name: true, role: true } } },
+        },
       },
     });
-    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    if (!ticket) return res.status(404).json(errorBody("NOT_FOUND", "Ticket not found"));
     return res.status(200).json({ data: ticket });
   } catch (error) {
     const correlationId = randomUUID();
     console.error(`[${correlationId}] ticket detail failed`, error);
-    return res.status(500).json({ error: "Unable to load Ticket", correlationId });
+    return res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to load Ticket", undefined, correlationId));
   }
 });
 
-app.post("/api/tickets/:ticketId/attachments", parseAttachmentUpload, async (req: Request, res: Response) => {
-  const requesterId = positiveInteger(req.header("X-Requester-Id"));
+app.post("/api/tickets/:ticketId/attachments", requireSession, requireNormalSession, requireRoles("REQUESTER"), requireCsrf, parseAttachmentUpload, async (req: Request, res: Response) => {
+  const requesterId = (req as AuthenticatedRequest).auth?.user.id ?? null;
   const ticketId = positiveInteger(req.params.ticketId);
-  if (!requesterId || !ticketId) return res.status(400).json({ error: "Invalid Requester or Ticket ID" });
+  if (!requesterId || !ticketId) return res.status(404).json(errorBody("NOT_FOUND", "Ticket not found"));
   const files = (req.files as Express.Multer.File[] | undefined) ?? [];
-  if (!files.length) return res.status(400).json({ error: "At least one file is required" });
-  if (files.some((file) => !allowedAttachmentTypes.has(file.mimetype))) return res.status(400).json({ error: "Unsupported attachment type" });
-  if (files.some((file) => !file.size || !hasValidSignature(file))) return res.status(400).json({ error: "Attachment content does not match its declared type" });
+  if (!files.length) return res.status(400).json(errorBody("VALIDATION_ERROR", "At least one file is required"));
+  if (files.some((file) => !allowedAttachmentTypes.has(file.mimetype))) return res.status(400).json(errorBody("VALIDATION_ERROR", "Unsupported attachment type"));
+  if (files.some((file) => !file.size || !hasValidSignature(file))) return res.status(400).json(errorBody("VALIDATION_ERROR", "Attachment content does not match its declared type"));
   const names = files.map((file) => safeOriginalName(file.originalname));
-  if (names.some((name) => !name)) return res.status(400).json({ error: "Unsafe attachment filename" });
+  if (names.some((name) => !name)) return res.status(400).json(errorBody("VALIDATION_ERROR", "Unsafe attachment filename"));
   const prisma = getPrisma();
   try {
     const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, requesterId }, select: { id: true } });
-    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    if (!ticket) return res.status(404).json(errorBody("NOT_FOUND", "Ticket not found"));
     const activeCount = await prisma.attachment.count({ where: { ticketId, removedAt: null } });
-    if (activeCount + files.length > 5) return res.status(400).json({ error: "A Ticket can have at most five active attachments" });
+    if (activeCount + files.length > 5) return res.status(400).json(errorBody("VALIDATION_ERROR", "A Ticket can have at most five active attachments"));
     await mkdir(attachmentRoot, { recursive: true });
     const created: Array<{ id: number; originalName: string; mimeType: string; sizeBytes: number; uploadedAt: Date; removedAt: Date | null; removedReason: string | null }> = [];
     const stored: string[] = [];
@@ -430,24 +433,56 @@ app.post("/api/tickets/:ticketId/attachments", parseAttachmentUpload, async (req
     return res.status(201).json({ data: created });
   } catch (error) {
     const correlationId = randomUUID(); console.error(`[${correlationId}] attachment upload failed`, error);
-    return res.status(500).json({ error: "Unable to upload attachments", correlationId });
+    return res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to upload attachments", undefined, correlationId));
   }
 });
 
-app.get("/api/tickets/:ticketId/attachments/:attachmentId/download", async (req: Request, res: Response) => {
-  const requesterId = positiveInteger(req.header("X-Requester-Id")); const ticketId = positiveInteger(req.params.ticketId); const attachmentId = positiveInteger(req.params.attachmentId);
-  if (!requesterId || !ticketId || !attachmentId) return res.status(400).json({ error: "Invalid attachment request" });
+app.get("/api/tickets/:ticketId/attachments/:attachmentId/download", requireSession, requireNormalSession, requireRoles("REQUESTER"), async (req: Request, res: Response) => {
+  const requesterId = (req as AuthenticatedRequest).auth?.user.id ?? null; const ticketId = positiveInteger(req.params.ticketId); const attachmentId = positiveInteger(req.params.attachmentId);
+  if (!requesterId || !ticketId || !attachmentId) return res.status(404).json(errorBody("NOT_FOUND", "Attachment not found"));
   const attachment = await getPrisma().attachment.findFirst({ where: { id: attachmentId, ticketId, removedAt: null, ticket: { requesterId } } });
-  if (!attachment) return res.status(404).json({ error: "Attachment not found" });
-  return res.download(path.join(attachmentRoot, attachment.storedName), attachment.originalName, (error) => { if (error && !res.headersSent) res.status(404).json({ error: "Attachment not found" }); });
+  if (!attachment) return res.status(404).json(errorBody("NOT_FOUND", "Attachment not found"));
+  return res.download(path.join(attachmentRoot, attachment.storedName), attachment.originalName, (error) => { if (error && !res.headersSent) res.status(404).json(errorBody("NOT_FOUND", "Attachment not found")); });
 });
 
-app.delete("/api/tickets/:ticketId/attachments/:attachmentId", async (req: Request, res: Response) => {
-  const requesterId = positiveInteger(req.header("X-Requester-Id")); const ticketId = positiveInteger(req.params.ticketId); const attachmentId = positiveInteger(req.params.attachmentId); const reason = normalizeText(req.body?.reason);
-  if (!requesterId || !ticketId || !attachmentId || !reason || reason.length > 500) return res.status(400).json({ error: "A removal reason is required" });
+app.delete("/api/tickets/:ticketId/attachments/:attachmentId", requireSession, requireNormalSession, requireRoles("REQUESTER"), requireCsrf, async (req: Request, res: Response) => {
+  const requesterId = (req as AuthenticatedRequest).auth?.user.id ?? null; const ticketId = positiveInteger(req.params.ticketId); const attachmentId = positiveInteger(req.params.attachmentId); const reason = normalizeText(req.body?.reason);
+  if (!requesterId || !ticketId || !attachmentId || !reason || reason.length > 500) return res.status(400).json(errorBody("VALIDATION_ERROR", "A removal reason is required"));
   const result = await getPrisma().attachment.updateMany({ where: { id: attachmentId, ticketId, removedAt: null, ticket: { requesterId } }, data: { removedAt: new Date(), removedReason: reason } });
-  if (!result.count) return res.status(404).json({ error: "Attachment not found" });
+  if (!result.count) return res.status(404).json(errorBody("NOT_FOUND", "Attachment not found"));
   return res.status(200).json({ data: { removed: true, attachmentId } });
 });
 
+app.get("/api/tickets/:ticketId/comments", requireSession, requireNormalSession, requireRoles("REQUESTER"), async (req: Request, res: Response) => {
+  const requesterId = (req as AuthenticatedRequest).auth?.user.id ?? null;
+  const ticketId = positiveInteger(req.params.ticketId);
+  if (!requesterId || !ticketId) return res.status(404).json(errorBody("NOT_FOUND", "Ticket not found"));
+  const ticket = await getPrisma().ticket.findFirst({ where: { id: ticketId, requesterId }, select: { id: true } });
+  if (!ticket) return res.status(404).json(errorBody("NOT_FOUND", "Ticket not found"));
+  const data = await getPrisma().publicComment.findMany({ where: { ticketId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, ticketId: true, body: true, createdAt: true, author: { select: { id: true, name: true, role: true } } } });
+  return res.status(200).json({ data, meta: {} });
+});
+
+app.post("/api/tickets/:ticketId/comments", requireSession, requireNormalSession, requireRoles("REQUESTER"), requireCsrf, async (req: Request, res: Response) => {
+  const requesterId = (req as AuthenticatedRequest).auth?.user.id ?? null;
+  const ticketId = positiveInteger(req.params.ticketId);
+  const body = normalizeText(req.body?.body);
+  if (!requesterId || !ticketId) return res.status(404).json(errorBody("NOT_FOUND", "Ticket not found"));
+  if (!body) return res.status(400).json(errorBody("CONTENT_REQUIRED", "Comment body is required", { body: "Comment body is required" }));
+  if (body.length > 2000) return res.status(400).json(errorBody("CONTENT_TOO_LONG", "Public Comment must be at most 2,000 characters", { body: "Comment body must be at most 2,000 characters" }));
+  const ticket = await getPrisma().ticket.findFirst({ where: { id: ticketId, requesterId }, select: { id: true } });
+  if (!ticket) return res.status(404).json(errorBody("NOT_FOUND", "Ticket not found"));
+  const comment = await getPrisma().publicComment.create({ data: { ticketId, authorId: requesterId, body }, select: { id: true, ticketId: true, body: true, createdAt: true, author: { select: { id: true, name: true, role: true } } } });
+  return res.status(201).json({ data: comment });
+});
+
+app.post("/api/tickets/:ticketId/requester-resolution", requireSession, requireNormalSession, requireRoles("REQUESTER"), requireCsrf, async (req: Request, res: Response) => {
+  const requesterId = (req as AuthenticatedRequest).auth?.user.id ?? null;
+  const ticketId = positiveInteger(req.params.ticketId);
+  if (!requesterId || !ticketId) return res.status(404).json(errorBody("NOT_FOUND", "Ticket not found"));
+  const result = await getPrisma().ticket.updateMany({ where: { id: ticketId, requesterId }, data: { requesterConfirmedResolved: true, requesterConfirmedResolvedAt: new Date() } });
+  if (!result.count) return res.status(404).json(errorBody("NOT_FOUND", "Ticket not found"));
+  const ticket = await getPrisma().ticket.findUniqueOrThrow({ where: { id: ticketId }, select: { id: true, requesterConfirmedResolved: true, requesterConfirmedResolvedAt: true } });
+  return res.status(200).json({ data: ticket });
+});
 export default app;
