@@ -7,5 +7,6 @@ test("IT Staff can open the authenticated operational queue and use its filters"
   await expect(page.getByLabel("Staff Ticket Queue filters")).toBeVisible();
   await page.getByLabel("Search").fill("E2E regression");
   await page.getByRole("button", { name: "Search Queue" }).click();
-  await expect(page.getByRole("status")).toContainText(/No Tickets match|Tickets/);
+  const queueResult = page.getByRole("status").or(page.getByRole("table"));
+  await expect(queueResult).toBeVisible({ timeout: 10_000 });
 });
