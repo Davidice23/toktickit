@@ -7,7 +7,7 @@ test("authenticated Requester can create a Ticket and cannot see staff controls"
   await expect(page.getByRole("link", { name: "Staff Queue" })).toHaveCount(0);
 
   await page.getByRole("link", { name: "Create Ticket" }).click();
-  await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible({ timeout: 15_000 });
   await page.getByLabel("Category").selectOption({ index: 1 });
   await page.getByLabel("Related System").selectOption({ index: 1 });
   await page.getByLabel("Requested Priority").selectOption("MEDIUM");

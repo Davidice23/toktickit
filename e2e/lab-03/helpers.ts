@@ -21,7 +21,7 @@ export async function signIn(page: Page, email: string, workspaceHeading: RegExp
   await expect.poll(async () => (await changeHeading.isVisible()) || (await workspace.isVisible()) || (await loginError.isVisible()), { timeout: 10_000 }).toBeTruthy();
   if (await changeHeading.isVisible()) {
     await page.getByLabel("Current password").fill(INITIAL_PASSWORD);
-    await page.getByLabel("New password").fill(E2E_PASSWORD);
+    await page.getByLabel("New password", { exact: true }).fill(E2E_PASSWORD);
     await page.getByLabel("Confirm new password").fill(E2E_PASSWORD);
     await page.getByRole("button", { name: "Save password" }).click();
   } else if (!(await workspace.isVisible())) {
