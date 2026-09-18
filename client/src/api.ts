@@ -165,3 +165,80 @@ function isCategory(value: unknown): value is Category { return typeof value ===
 export async function checkSystem(): Promise<SystemStatus> {
   const response = await fetch(`${API_URL}/api/health`); if (!response.ok) throw new Error("TokTickIT API health check failed"); const health = await response.json() as { status: string; service: string }; if (health.status !== "ok" || health.service !== "TokTickIT API") throw new Error("TokTickIT API returned an unexpected health response"); const categories = await fetchCategories(); return { online: true, categories };
 }
+
+export type TicketStatus = "NEW" | "OPEN" | "IN_PROGRESS" | "WAITING_FOR_REQUESTER" | "RESOLVED" | "CLOSED" | "REOPENED" | "CANCELLED";
+export type TicketPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+export interface StaffOwner { id: number; name: string; email: string; role: User["role"]; isActive: boolean }
+export interface StaffTicketRow extends TicketSummary {
+  ownerId: number | null;
+  requester: { id: number; name: string; email: string };
+  owner: StaffOwner | null;
+  itPriority: TicketPriority | null;
+}
+export interface StaffTicketList { data: StaffTicketRow[]; meta: TicketList["meta"] }
+export interface InternalNote { id: number; ticketId: number; body: string; createdAt: string; author: { id: number; name: string; role: User["role"] } }
+export interface StaffTicketDetail extends Omit<TicketDetail, "itPriority" | "publicComments"> {
+  itPriority: TicketPriority | null;
+  ownerId: number | null;
+  owner: StaffOwner | null;
+  publicComments: PublicComment[];
+  internalNotes: InternalNote[];
+}
+
+export async function fetchStaffTickets(params: URLSearchParams): Promise<StaffTicketList> {
+  const response = await fetch(`${API_URL}/api/staff/tickets?${params.toString()}`, { credentials: "include" });
+  const payload = await jsonResponse<StaffTicketList>(response, "Unable to load Staff Queue");
+  if (!payload.meta || !Array.isArray(payload.data)) throw new Error("Unexpected Staff Queue response");
+  return payload;
+}
+
+export async function fetchStaffTicketDetail(ticketId: number): Promise<StaffTicketDetail> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}`, { credentials: "include" });
+  const payload = await jsonResponse<{ data: StaffTicketDetail }>(response, "Unable to load Staff Ticket");
+  if (!payload.data) throw new Error("Unexpected Staff Ticket response");
+  return payload.data;
+}
+
+export async function claimStaffTicket(ticketId: number): Promise<void> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/claim`, { method: "POST", headers: protectedHeaders(), credentials: "include" });
+  await jsonResponse(response, "Unable to claim Ticket");
+}
+
+export async function assignStaffTicket(ticketId: number, ownerId: number | null): Promise<void> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/assignment`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ ownerId }) });
+  await jsonResponse(response, "Unable to update Ticket owner");
+}
+
+export async function updateStaffTicketPriority(ticketId: number, itPriority: TicketPriority): Promise<void> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/priority`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ itPriority }) });
+  await jsonResponse(response, "Unable to update IT Priority");
+}
+
+export async function updateStaffTicketStatus(ticketId: number, status: TicketStatus, options: { confirmation?: boolean; reason?: string } = {}): Promise<void> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/status`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ status, ...options }) });
+  await jsonResponse(response, "Unable to update Ticket status");
+}
+
+export async function fetchStaffComments(ticketId: number): Promise<PublicComment[]> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/comments`, { credentials: "include" });
+  const payload = await jsonResponse<{ data: PublicComment[] }>(response, "Unable to load public comments");
+  return payload.data;
+}
+
+export async function createStaffComment(ticketId: number, body: string): Promise<PublicComment> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/comments`, { method: "POST", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ body }) });
+  const payload = await jsonResponse<{ data: PublicComment }>(response, "Unable to add public comment");
+  return payload.data;
+}
+
+export async function createInternalNote(ticketId: number, body: string): Promise<InternalNote> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/internal-notes`, { method: "POST", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ body }) });
+  const payload = await jsonResponse<{ data: InternalNote }>(response, "Unable to add internal note");
+  return payload.data;
+}
+
+export async function downloadStaffAttachment(ticketId: number, attachmentId: number, originalName: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/attachments/${attachmentId}/download`, { credentials: "include" });
+  if (!response.ok) throw new Error("Unable to download attachment");
+  const objectUrl = URL.createObjectURL(await response.blob()); const anchor = document.createElement("a"); anchor.href = objectUrl; anchor.download = originalName; anchor.click(); URL.revokeObjectURL(objectUrl);
+}
