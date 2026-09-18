@@ -472,7 +472,10 @@ app.post("/api/tickets/:ticketId/comments", requireSession, requireNormalSession
   if (body.length > 2000) return res.status(400).json(errorBody("CONTENT_TOO_LONG", "Public Comment must be at most 2,000 characters", { body: "Comment body must be at most 2,000 characters" }));
   const ticket = await getPrisma().ticket.findFirst({ where: { id: ticketId, requesterId }, select: { id: true } });
   if (!ticket) return res.status(404).json(errorBody("NOT_FOUND", "Ticket not found"));
-  const comment = await getPrisma().publicComment.create({ data: { ticketId, authorId: requesterId, body }, select: { id: true, ticketId: true, body: true, createdAt: true, author: { select: { id: true, name: true, role: true } } } });
+  const comment = await getPrisma().publicComment.create({
+    data: { ticketId, authorId: requesterId, body },
+    select: { id: true, ticketId: true, body: true, createdAt: true, author: { select: { id: true, name: true, role: true } } },
+  });
   return res.status(201).json({ data: comment });
 });
 
@@ -485,4 +488,293 @@ app.post("/api/tickets/:ticketId/requester-resolution", requireSession, requireN
   const ticket = await getPrisma().ticket.findUniqueOrThrow({ where: { id: ticketId }, select: { id: true, requesterConfirmedResolved: true, requesterConfirmedResolvedAt: true } });
   return res.status(200).json({ data: ticket });
 });
+
+// ---------------------------------------------------------------------------
+// Lab 3 — IT Staff and Administrator operational Ticket workflow
+// ---------------------------------------------------------------------------
+const staffQueueSortFields: Record<string, string> = {
+  updatedAt: "updatedAt",
+  createdAt: "createdAt",
+  ticketNumber: "ticketNumber",
+  status: "currentStatus",
+  itPriority: "itPriority",
+  owner: "ownerId",
+};
+const staffQueueParams = new Set(["search", "status", "requestedPriority", "itPriority", "owner", "sortBy", "sortDirection", "page", "pageSize"]);
+const staffTicketSelect = {
+  id: true,
+  ticketNumber: true,
+  requesterId: true,
+  categoryId: true,
+  relatedSystemId: true,
+  summary: true,
+  description: true,
+  requestedPriority: true,
+  currentStatus: true,
+  itPriority: true,
+  ownerId: true,
+  requesterConfirmedResolved: true,
+  requesterConfirmedResolvedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  requester: { select: { id: true, name: true, email: true } },
+  owner: { select: { id: true, name: true, email: true, role: true, isActive: true } },
+  category: { select: { id: true, name: true } },
+  relatedSystem: { select: { id: true, name: true } },
+  attachments: {
+    select: { id: true, ticketId: true, originalName: true, mimeType: true, sizeBytes: true, uploadedAt: true, removedAt: true, removedReason: true },
+    orderBy: [{ uploadedAt: "asc" as const }, { id: "asc" as const }],
+  },
+  publicComments: {
+    orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],
+    select: { id: true, ticketId: true, body: true, createdAt: true, author: { select: { id: true, name: true, role: true } } },
+  },
+  internalNotes: {
+    orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],
+    select: { id: true, ticketId: true, body: true, createdAt: true, author: { select: { id: true, name: true, role: true } } },
+  },
+};
+
+const staffRoles = ["IT_STAFF", "ADMINISTRATOR"] as const;
+
+function staffNotFound(res: Response) {
+  return res.status(404).json(errorBody("NOT_FOUND", "Ticket not found"));
+}
+
+function staffContentError(res: Response, field: string, max: number) {
+  return res.status(400).json(errorBody("CONTENT_TOO_LONG", field + " must be at most " + max.toLocaleString() + " characters", { body: "Content must be at most " + max.toLocaleString() + " characters" }));
+}
+
+app.get("/api/staff/tickets", requireSession, requireNormalSession, requireRoles(...staffRoles), async (req: Request, res: Response) => {
+  const unknown = Object.keys(req.query).filter((key) => !staffQueueParams.has(key));
+  const fields: Record<string, string> = {};
+  if (unknown.length) fields.query = "Unsupported queue parameter";
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  if (search.length > 120) fields.search = "Search must contain at most 120 characters";
+  const status = req.query.status;
+  if (status !== undefined && (typeof status !== "string" || !Object.values(TicketStatus).includes(status as TicketStatus))) fields.status = "Unsupported status";
+  const requestedPriority = req.query.requestedPriority;
+  if (requestedPriority !== undefined && (typeof requestedPriority !== "string" || !Object.values(RequestedPriority).includes(requestedPriority as RequestedPriority))) fields.requestedPriority = "Unsupported requested priority";
+  const itPriority = req.query.itPriority;
+  if (itPriority !== undefined && (typeof itPriority !== "string" || (itPriority !== "UNASSIGNED" && !Object.values(ITPriority).includes(itPriority as ITPriority)))) fields.itPriority = "Unsupported IT priority";
+  const owner = req.query.owner;
+  if (owner !== undefined && typeof owner === "string" && !["unassigned", "me"].includes(owner) && !positiveInteger(owner)) fields.owner = "Owner must be unassigned, me, or a positive User ID";
+  if (owner !== undefined && typeof owner !== "string") fields.owner = "Owner must be unassigned, me, or a positive User ID";
+  const sortBy = req.query.sortBy === undefined ? "updatedAt" : req.query.sortBy;
+  if (typeof sortBy !== "string" || !staffQueueSortFields[sortBy]) fields.sortBy = "Unsupported sort field";
+  const sortDirection = req.query.sortDirection === undefined ? "desc" : req.query.sortDirection;
+  if (sortDirection !== "asc" && sortDirection !== "desc") fields.sortDirection = "Sort direction must be asc or desc";
+  const page = req.query.page === undefined ? 1 : positiveInteger(req.query.page);
+  const pageSize = req.query.pageSize === undefined ? 20 : positiveInteger(req.query.pageSize);
+  if (!page) fields.page = "Page must be a positive integer";
+  if (!pageSize || ![10, 20, 50].includes(pageSize)) fields.pageSize = "Page size must be 10, 20, or 50";
+  if (Object.keys(fields).length) return validationError(res, fields);
+
+  const auth = (req as AuthenticatedRequest).auth;
+  if (!auth) return;
+  const validPage = page as number;
+  const validPageSize = pageSize as number;
+  const where: any = {};
+  if (search) {
+    where.OR = [
+      { ticketNumber: { contains: search, mode: "insensitive" } },
+      { summary: { contains: search, mode: "insensitive" } },
+      { description: { contains: search, mode: "insensitive" } },
+      { requester: { name: { contains: search, mode: "insensitive" } } },
+      { requester: { email: { contains: search, mode: "insensitive" } } },
+    ];
+  }
+  if (typeof status === "string") where.currentStatus = status;
+  if (typeof requestedPriority === "string") where.requestedPriority = requestedPriority;
+  if (typeof itPriority === "string") where.itPriority = itPriority === "UNASSIGNED" ? null : itPriority;
+  if (owner === "unassigned") where.ownerId = null;
+  if (owner === "me") where.ownerId = auth.user.id;
+  if (typeof owner === "string" && positiveInteger(owner)) where.ownerId = positiveInteger(owner);
+  try {
+    const prisma = getPrisma();
+    const orderField = staffQueueSortFields[sortBy as string];
+    const [totalItems, data] = await Promise.all([
+      prisma.ticket.count({ where }),
+      prisma.ticket.findMany({
+        where,
+        orderBy: [{ [orderField]: sortDirection }, { id: "desc" }],
+        skip: (validPage - 1) * validPageSize,
+        take: validPageSize,
+        select: {
+          id: true,
+          ticketNumber: true,
+          requesterId: true,
+          summary: true,
+          requestedPriority: true,
+          itPriority: true,
+          currentStatus: true,
+          ownerId: true,
+          createdAt: true,
+          updatedAt: true,
+          requester: { select: { id: true, name: true, email: true } },
+          owner: { select: { id: true, name: true, email: true, role: true, isActive: true } },
+          category: { select: { id: true, name: true } },
+          relatedSystem: { select: { id: true, name: true } },
+        },
+      }),
+    ]);
+    const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / validPageSize);
+    return res.status(200).json({ data, meta: { page: validPage, pageSize: validPageSize, totalItems, totalPages, hasPreviousPage: validPage > 1, hasNextPage: validPage < totalPages } });
+  } catch (error) {
+    const correlationId = randomUUID();
+    console.error("[" + correlationId + "] staff queue failed", error);
+    return res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to load Staff Queue", undefined, correlationId));
+  }
+});
+
+app.get("/api/staff/tickets/:ticketId", requireSession, requireNormalSession, requireRoles(...staffRoles), async (req: Request, res: Response) => {
+  const ticketId = positiveInteger(req.params.ticketId);
+  if (!ticketId) return staffNotFound(res);
+  try {
+    const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId }, select: staffTicketSelect });
+    if (!ticket) return staffNotFound(res);
+    return res.status(200).json({ data: ticket });
+  } catch (error) {
+    const correlationId = randomUUID();
+    console.error("[" + correlationId + "] staff ticket detail failed", error);
+    return res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to load Staff Ticket", undefined, correlationId));
+  }
+});
+
+app.get("/api/staff/tickets/:ticketId/attachments/:attachmentId/download", requireSession, requireNormalSession, requireRoles(...staffRoles), async (req: Request, res: Response) => {
+  const ticketId = positiveInteger(req.params.ticketId);
+  const attachmentId = positiveInteger(req.params.attachmentId);
+  if (!ticketId || !attachmentId) return res.status(404).json(errorBody("NOT_FOUND", "Attachment not found"));
+  const attachment = await getPrisma().attachment.findFirst({ where: { id: attachmentId, ticketId, removedAt: null } });
+  if (!attachment) return res.status(404).json(errorBody("NOT_FOUND", "Attachment not found"));
+  return res.download(path.join(attachmentRoot, attachment.storedName), attachment.originalName, (error) => {
+    if (error && !res.headersSent) res.status(404).json(errorBody("NOT_FOUND", "Attachment not found"));
+  });
+});
+
+app.post("/api/staff/tickets/:ticketId/claim", requireSession, requireNormalSession, requireRoles(...staffRoles), requireCsrf, async (req: Request, res: Response) => {
+  const ticketId = positiveInteger(req.params.ticketId);
+  const auth = (req as AuthenticatedRequest).auth;
+  if (!ticketId || !auth) return staffNotFound(res);
+  const updated = await getPrisma().ticket.updateMany({ where: { id: ticketId, ownerId: null }, data: { ownerId: auth.user.id } });
+  if (!updated.count) return res.status(409).json(errorBody("CLAIM_CONFLICT", "Ticket is already owned"));
+  return res.status(200).json({ data: { owner: safeUser(auth.user) } });
+});
+
+app.patch("/api/staff/tickets/:ticketId/assignment", requireSession, requireNormalSession, requireRoles(...staffRoles), requireCsrf, async (req: Request, res: Response) => {
+  const ticketId = positiveInteger(req.params.ticketId);
+  if (!ticketId) return staffNotFound(res);
+  if (!Object.prototype.hasOwnProperty.call(req.body ?? {}, "ownerId")) return validationError(res, { ownerId: "ownerId is required" });
+  const rawOwnerId = req.body.ownerId;
+  const ownerId = rawOwnerId === null ? null : positiveInteger(rawOwnerId);
+  if (rawOwnerId !== null && !ownerId) return validationError(res, { ownerId: "ownerId must be null or a positive User ID" });
+  const prisma = getPrisma();
+  const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true, ownerId: true, currentStatus: true } });
+  if (!ticket) return staffNotFound(res);
+  if (ticket.ownerId === null && ownerId !== null) return res.status(409).json(errorBody("CLAIM_REQUIRED", "Use the claim endpoint for an unassigned Ticket"));
+  if (ownerId === null && !["NEW", "OPEN"].includes(ticket.currentStatus)) return res.status(409).json(errorBody("OWNER_REQUIRED", "Tickets may only be unassigned while New or Open"));
+  if (ownerId !== null) {
+    const target = await prisma.requesterUser.findFirst({ where: { id: ownerId, isActive: true, role: { in: [...staffRoles] } }, select: { id: true, name: true, email: true, role: true, isActive: true, mustChangePassword: true } });
+    if (!target) return res.status(400).json(errorBody("INVALID_OWNER", "Owner must be an active IT Staff or Administrator"));
+    const updated = await prisma.ticket.update({ where: { id: ticketId }, data: { ownerId }, select: { owner: { select: { id: true, name: true, email: true, role: true, isActive: true } } } });
+    return res.status(200).json({ data: updated });
+  }
+  const updated = await prisma.ticket.update({ where: { id: ticketId }, data: { ownerId: null }, select: { owner: true } });
+  return res.status(200).json({ data: updated });
+});
+
+app.patch("/api/staff/tickets/:ticketId/priority", requireSession, requireNormalSession, requireRoles(...staffRoles), requireCsrf, async (req: Request, res: Response) => {
+  const ticketId = positiveInteger(req.params.ticketId);
+  const itPriority = req.body?.itPriority;
+  if (!ticketId) return staffNotFound(res);
+  if (typeof itPriority !== "string" || !Object.values(ITPriority).includes(itPriority as ITPriority)) return validationError(res, { itPriority: "IT Priority must be LOW, MEDIUM, HIGH, or URGENT" });
+  const updated = await getPrisma().ticket.updateMany({ where: { id: ticketId }, data: { itPriority: itPriority as ITPriority } });
+  if (!updated.count) return staffNotFound(res);
+  return res.status(200).json({ data: { id: ticketId, itPriority } });
+});
+
+const allowedStaffTransitions: Record<TicketStatus, TicketStatus[]> = {
+  NEW: [TicketStatus.OPEN, TicketStatus.CANCELLED],
+  OPEN: [TicketStatus.IN_PROGRESS, TicketStatus.WAITING_FOR_REQUESTER, TicketStatus.CANCELLED],
+  IN_PROGRESS: [TicketStatus.WAITING_FOR_REQUESTER, TicketStatus.RESOLVED, TicketStatus.CANCELLED],
+  WAITING_FOR_REQUESTER: [TicketStatus.IN_PROGRESS, TicketStatus.RESOLVED, TicketStatus.CANCELLED],
+  RESOLVED: [TicketStatus.CLOSED, TicketStatus.REOPENED],
+  CLOSED: [TicketStatus.REOPENED],
+  REOPENED: [TicketStatus.IN_PROGRESS, TicketStatus.CANCELLED],
+  CANCELLED: [TicketStatus.REOPENED],
+};
+
+app.patch("/api/staff/tickets/:ticketId/status", requireSession, requireNormalSession, requireRoles(...staffRoles), requireCsrf, async (req: Request, res: Response) => {
+  const ticketId = positiveInteger(req.params.ticketId);
+  const status = req.body?.status;
+  if (!ticketId) return staffNotFound(res);
+  if (typeof status !== "string" || !Object.values(TicketStatus).includes(status as TicketStatus)) return validationError(res, { status: "Unsupported status" });
+  const nextStatus = status as TicketStatus;
+  const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId }, select: { id: true, currentStatus: true, ownerId: true } });
+  if (!ticket) return staffNotFound(res);
+  if (!allowedStaffTransitions[ticket.currentStatus].includes(nextStatus)) return res.status(409).json(errorBody("INVALID_TRANSITION", "Status transition is not allowed"));
+  if (nextStatus === TicketStatus.CANCELLED && (req.body.confirmation !== true || !normalizeText(req.body.reason))) return validationError(res, { confirmation: "Cancellation confirmation and reason are required" });
+  if ((nextStatus === TicketStatus.RESOLVED || nextStatus === TicketStatus.CLOSED) && req.body.confirmation !== true) return validationError(res, { confirmation: "Confirmation is required for this status" });
+  if (nextStatus === TicketStatus.REOPENED && !normalizeText(req.body.reason)) return validationError(res, { reason: "A reason is required when reopening" });
+  if ((nextStatus === TicketStatus.IN_PROGRESS || nextStatus === TicketStatus.RESOLVED) && !ticket.ownerId) return validationError(res, { ownerId: "An active operational owner is required" });
+  const updated = await getPrisma().ticket.update({ where: { id: ticketId }, data: { currentStatus: nextStatus }, select: { id: true, currentStatus: true } });
+  return res.status(200).json({ data: updated });
+});
+
+app.get("/api/staff/tickets/:ticketId/comments", requireSession, requireNormalSession, requireRoles(...staffRoles), async (req: Request, res: Response) => {
+  const ticketId = positiveInteger(req.params.ticketId);
+  if (!ticketId) return staffNotFound(res);
+  const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+  if (!ticket) return staffNotFound(res);
+  const data = await getPrisma().publicComment.findMany({ where: { ticketId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, ticketId: true, body: true, createdAt: true, author: { select: { id: true, name: true, role: true } } } });
+  return res.status(200).json({ data, meta: {} });
+});
+
+app.post("/api/staff/tickets/:ticketId/comments", requireSession, requireNormalSession, requireRoles(...staffRoles), requireCsrf, async (req: Request, res: Response) => {
+  const ticketId = positiveInteger(req.params.ticketId);
+  const body = normalizeText(req.body?.body);
+  if (!ticketId) return staffNotFound(res);
+  if (!body) return res.status(400).json(errorBody("CONTENT_REQUIRED", "Comment body is required", { body: "Comment body is required" }));
+  if (body.length > 2000) return staffContentError(res, "Public Comment", 2000);
+  const auth = (req as AuthenticatedRequest).auth;
+  if (!auth) return;
+  const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+  if (!ticket) return staffNotFound(res);
+  const created = await getPrisma().publicComment.create({
+    data: { ticketId, authorId: auth.user.id, body },
+    select: { id: true, ticketId: true, body: true, createdAt: true, author: { select: { id: true, name: true, role: true } } },
+  });
+  return res.status(201).json({ data: created });
+});
+
+app.get("/api/staff/tickets/:ticketId/internal-notes", requireSession, requireNormalSession, requireRoles(...staffRoles), async (req: Request, res: Response) => {
+  const ticketId = positiveInteger(req.params.ticketId);
+  if (!ticketId) return staffNotFound(res);
+  const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+  if (!ticket) return staffNotFound(res);
+  const data = await getPrisma().internalNote.findMany({
+    where: { ticketId },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: { id: true, ticketId: true, body: true, createdAt: true, author: { select: { id: true, name: true, role: true } } },
+  });
+  return res.status(200).json({ data, meta: {} });
+});
+
+app.post("/api/staff/tickets/:ticketId/internal-notes", requireSession, requireNormalSession, requireRoles(...staffRoles), requireCsrf, async (req: Request, res: Response) => {
+  const ticketId = positiveInteger(req.params.ticketId);
+  const body = normalizeText(req.body?.body);
+  if (!ticketId) return staffNotFound(res);
+  if (!body) return res.status(400).json(errorBody("CONTENT_REQUIRED", "Internal Note body is required", { body: "Internal Note body is required" }));
+  if (body.length > 4000) return staffContentError(res, "Internal Note", 4000);
+  const auth = (req as AuthenticatedRequest).auth;
+  if (!auth) return;
+  const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+  if (!ticket) return staffNotFound(res);
+  const created = await getPrisma().internalNote.create({
+    data: { ticketId, authorId: auth.user.id, body },
+    select: { id: true, ticketId: true, body: true, createdAt: true, author: { select: { id: true, name: true, role: true } } },
+  });
+  return res.status(201).json({ data: created });
+});
+
 export default app;
