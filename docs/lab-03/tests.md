@@ -1,8 +1,8 @@
 # Lab 3 Test Plan and Traceability
 
-> Contract status: Pending peer review. Implementation must not start until this contract is approved.
+> Contract status: Approved by Sxr1n; implementation and final verification may proceed.
 
-Test execution status: Planned / Not run. This document is a pre-implementation plan; it contains no implementation or passing-test claim.
+Test execution status: Client/server tests are executed in CI for each PR. Lab 3 browser workflows are implemented in `e2e/lab-03/` and final pass evidence is recorded after the release-verification CI run.
 
 ## 1. Test strategy
 

@@ -3,7 +3,8 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./lab-03",
   timeout: 30_000,
-  fullyParallel: true,
+  fullyParallel: false,
+  workers: 1,
   reporter: process.env.CI ? [["line"], ["html", { outputFolder: "playwright-report", open: "never" }]] : "list",
   webServer: {
     command: "npm --prefix ../client run dev -- --host 127.0.0.1",

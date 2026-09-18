@@ -1,5 +1,11 @@
-import { test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { signIn } from "./helpers";
 
-test("Lab 3 Staff Ticket workflow placeholder", async () => {
-  test.skip(true, "Implemented with the Staff Queue/Detail issues");
+test("IT Staff can open the authenticated operational queue and use its filters", async ({ page }) => {
+  await signIn(page, "it.staff.one@example.test", /Staff operations workspace/);
+  await expect(page.getByRole("heading", { name: "Staff Ticket Queue" })).toBeVisible();
+  await expect(page.getByLabel("Staff Ticket Queue filters")).toBeVisible();
+  await page.getByLabel("Search").fill("E2E regression");
+  await page.getByRole("button", { name: "Search Queue" }).click();
+  await expect(page.getByRole("status")).toContainText(/No Tickets match|Tickets/);
 });
