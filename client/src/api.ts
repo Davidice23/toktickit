@@ -4,6 +4,9 @@ export interface Category { id: number; name: string }
 export interface RelatedSystem { id: number; name: string; isActive?: boolean }
 export interface Requester { id: number; name: string; isActive: boolean }
 export interface User { id: number; name: string; email: string; role: "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR"; isActive: boolean; mustChangePassword: boolean }
+export type AdminUserRole = User["role"];
+export interface AdminUser extends User {}
+export interface AdminUserList { data: AdminUser[]; meta: { totalItems: number } }
 export interface AuthSession { user: User; mustChangePassword: boolean; csrfToken: string }
 export interface SystemStatus { online: boolean; categories: Category[] }
 export interface CreatedTicket { id: number; ticketNumber: string; requesterId: number; summary: string; currentStatus: string; createdAt: string }
@@ -241,4 +244,40 @@ export async function downloadStaffAttachment(ticketId: number, attachmentId: nu
   const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/attachments/${attachmentId}/download`, { credentials: "include" });
   if (!response.ok) throw new Error("Unable to download attachment");
   const objectUrl = URL.createObjectURL(await response.blob()); const anchor = document.createElement("a"); anchor.href = objectUrl; anchor.download = originalName; anchor.click(); URL.revokeObjectURL(objectUrl);
+}
+
+export async function fetchAdminUsers(search = "", role: AdminUserRole | "" = ""): Promise<AdminUserList> {
+  const params = new URLSearchParams();
+  if (search.trim()) params.set("search", search.trim());
+  if (role) params.set("role", role);
+  const response = await fetch(`${API_URL}/api/admin/users${params.toString() ? `?${params.toString()}` : ""}`, { credentials: "include" });
+  const payload = await jsonResponse<AdminUserList>(response, "Unable to load Users");
+  if (!payload.meta || !Array.isArray(payload.data)) throw new Error("Unexpected User response");
+  return payload;
+}
+
+export interface AdminUserInput {
+  name: string;
+  email: string;
+  role: AdminUserRole;
+  isActive: boolean;
+  initialPassword: string;
+}
+
+export async function createAdminUser(input: AdminUserInput): Promise<AdminUser> {
+  const response = await fetch(`${API_URL}/api/admin/users`, { method: "POST", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify(input) });
+  const payload = await jsonResponse<{ data: AdminUser }>(response, "Unable to create User");
+  return payload.data;
+}
+
+export async function updateAdminUser(userId: number, input: Partial<Pick<AdminUser, "name" | "email" | "role" | "isActive">>): Promise<AdminUser> {
+  const response = await fetch(`${API_URL}/api/admin/users/${userId}`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify(input) });
+  const payload = await jsonResponse<{ data: AdminUser }>(response, "Unable to update User");
+  return payload.data;
+}
+
+export async function resetAdminUserPassword(userId: number, initialPassword: string): Promise<AdminUser> {
+  const response = await fetch(`${API_URL}/api/admin/users/${userId}/initial-password`, { method: "POST", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ initialPassword }) });
+  const payload = await jsonResponse<{ data: AdminUser }>(response, "Unable to reset initial password");
+  return payload.data;
 }

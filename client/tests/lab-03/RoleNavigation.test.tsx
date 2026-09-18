@@ -28,4 +28,14 @@ describe("Lab 3 role-specific navigation", () => {
     expect(screen.getAllByRole("link", { name: "Create Ticket" }).length).toBeGreaterThan(0);
     expect(screen.queryByRole("link", { name: "Staff Queue" })).not.toBeInTheDocument();
   });
+
+  it("shows both Staff Queue and User Management for Administrators", async () => {
+    const administrator = { user: { id: 9, name: "Admin", email: "admin@example.com", role: "ADMINISTRATOR" as const, isActive: true, mustChangePassword: false }, mustChangePassword: false, csrfToken: "csrf" };
+    vi.spyOn(api, "fetchCurrentUser").mockResolvedValue(administrator);
+    vi.spyOn(api, "fetchAdminUsers").mockResolvedValue({ data: [], meta: { totalItems: 0 } });
+    render(<App />);
+    expect(await screen.findByRole("link", { name: "Staff Queue" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "User Management" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "User Management" })).toBeInTheDocument();
+  });
 });
