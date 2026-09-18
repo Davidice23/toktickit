@@ -2,7 +2,7 @@
 
 > Contract status: Approved by Sxr1n; implementation and final verification may proceed.
 
-Test execution status: PR #58 CI verified the full Server, Client, and browser workflow jobs on 2026-09-18. The browser suite executed 7 tests across the five Lab 3 specs, including responsive checks at 1440px, 820px, and 390px. Final-main rerun remains required after the release PR.
+Test execution status: PR #58 CI verified the full Server, Client, and browser workflow jobs on 2026-09-18. The release was merged by PR #59, and the final-main push CI also passed all three jobs on 2026-09-18. The browser suite executed 7 tests across the five Lab 3 specs, including responsive checks at 1440px, 820px, and 390px.
 
 ## 1. Test strategy
 
@@ -17,7 +17,7 @@ Coverage layers:
 - End-to-end tests with the real client, server, test database, seeded roles, session cookie, and representative workflows.
 - Manual/automated responsive and accessibility inspection at 1440px, 820px, and 390px.
 
-Rows below reflect the PR #58 staging verification. A complete rerun on final `main` is still required after release merge.
+Rows below reflect the PR #58 staging verification; the final-main CI run is recorded in Section 9.
 
 ## 2. Test environment and isolation
 
@@ -172,13 +172,13 @@ E2E:
 
     npx playwright test e2e/lab-03
 
-Focused commands may be used during TDD, but final evidence must include complete output from the final main branch. PR #58 records the complete staging evidence; the release PR must repeat these commands on `main`.
+Focused commands may be used during TDD, but final evidence must include complete output from the final main branch. PR #58 records the complete staging evidence, and Section 9 records the final-main CI rerun.
 
 ## 7. Final verification checklist
 
-- [x] All planned server tests pass in the PR #58 staging verification (final-main rerun remains required).
-- [x] All planned client tests pass in the PR #58 staging verification (final-main rerun remains required).
-- [x] All three mandated E2E files and the planned Requester regression/responsive E2E files pass in the PR #58 staging verification (final-main rerun remains required).
+- [x] All planned server tests pass in PR #58 staging and final-main CI.
+- [x] All planned client tests pass in PR #58 staging and final-main CI.
+- [x] All three mandated E2E files and the planned Requester regression/responsive E2E files pass in PR #58 staging and final-main CI.
 - [x] Migration and idempotent seed apply in the isolated PostgreSQL CI database.
 - [x] Seed/migration checks pass in the Server CI job.
 - [x] Direct unauthorized API calls are covered by the Server authorization suite.
@@ -195,4 +195,14 @@ Focused commands may be used during TDD, but final evidence must include complet
 - Lab 3 browser workflows: passed, 7 tests across 5 files
 - CI database: isolated PostgreSQL with committed Lab 3 upgrade and seed
 
-The evidence is on lab3-staging; repeat the complete checklist after the release PR lands on main.
+The evidence is on lab3-staging; final-main evidence is recorded below after PR #59.
+
+## 9. Final-main release evidence
+
+- Release pull request: https://github.com/Davidice23/toktickit/pull/59
+- Release merge commit: `00b71e36e979e02dcf72847c9035e00cde934159`
+- Final-main CI run: https://github.com/Davidice23/toktickit/actions/runs/35321640402
+- Trigger: push to `main` on 2026-09-18
+- Server build and tests: passed (PostgreSQL container, Lab 3 upgrade/seed, full server suite)
+- Client build and tests: passed (production build and full client suite)
+- Lab 3 browser workflows: passed (Chromium, real API/database, 7 tests across 5 files)
