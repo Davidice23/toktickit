@@ -777,4 +777,141 @@ app.post("/api/staff/tickets/:ticketId/internal-notes", requireSession, requireN
   return res.status(201).json({ data: created });
 });
 
+
+// ---------------------------------------------------------------------------
+// Lab 3 — Administrator User Management
+// ---------------------------------------------------------------------------
+const adminUserRoles = ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"] as const;
+type AdminUserRole = typeof adminUserRoles[number];
+const adminUserFields = { id: true, name: true, email: true, role: true, isActive: true, mustChangePassword: true } as const;
+
+function adminSafeUser(user: { id: number; name: string; email: string; role: string; isActive: boolean; mustChangePassword: boolean }) {
+  return { id: user.id, name: user.name, email: user.email, role: user.role, isActive: user.isActive, mustChangePassword: user.mustChangePassword };
+}
+
+function adminUserNotFound(res: Response) {
+  return res.status(404).json(errorBody("NOT_FOUND", "User not found"));
+}
+
+app.get("/api/admin/users", requireSession, requireNormalSession, requireRoles("ADMINISTRATOR"), async (req: Request, res: Response) => {
+  const unknown = Object.keys(req.query).filter((key) => !["search", "role"].includes(key));
+  const fields: Record<string, string> = {};
+  if (unknown.length) fields.query = "Unsupported user parameter";
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  if (search.length > 120) fields.search = "Search must contain at most 120 characters";
+  const role = req.query.role;
+  if (role !== undefined && (typeof role !== "string" || !(adminUserRoles as readonly string[]).includes(role))) fields.role = "Unsupported role";
+  if (Object.keys(fields).length) return validationError(res, fields);
+  const where = {
+    ...(search ? { OR: [{ name: { contains: search, mode: "insensitive" as const } }, { email: { contains: search, mode: "insensitive" as const } }] } : {}),
+    ...(typeof role === "string" ? { role: role as AdminUserRole } : {}),
+  };
+  try {
+    const users = await getPrisma().requesterUser.findMany({ where, orderBy: [{ name: "asc" }, { id: "asc" }], select: adminUserFields });
+    return res.status(200).json({ data: users.map(adminSafeUser), meta: { totalItems: users.length } });
+  } catch (error) {
+    const correlationId = randomUUID();
+    console.error("[" + correlationId + "] admin user list failed", error);
+    return res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to load Users", undefined, correlationId));
+  }
+});
+
+app.post("/api/admin/users", requireSession, requireNormalSession, requireRoles("ADMINISTRATOR"), requireCsrf, async (req: Request, res: Response) => {
+  const name = normalizeText(req.body?.name);
+  const email = normalizeEmail(req.body?.email);
+  const role = req.body?.role;
+  const initialPassword = req.body?.initialPassword;
+  const fields: Record<string, string> = {};
+  if (!name || name.length > 120) fields.name = "Name is required and must be at most 120 characters";
+  if (!email) fields.email = "A valid email is required";
+  if (typeof role !== "string" || !(adminUserRoles as readonly string[]).includes(role)) fields.role = "Role must be REQUESTER, IT_STAFF, or ADMINISTRATOR";
+  const passwordFields = validatePassword(initialPassword);
+  if (passwordFields.password) fields.initialPassword = passwordFields.password;
+  if (Object.keys(fields).length) return validationError(res, fields);
+  try {
+    const prisma = getPrisma();
+    const existing = await prisma.requesterUser.findUnique({ where: { email: email as string }, select: { id: true } });
+    if (existing) return res.status(409).json(errorBody("DUPLICATE_EMAIL", "A user with this email already exists", { email: "Email is already in use" }));
+    const passwordHash = await hashPassword(initialPassword as string);
+    const user = await prisma.requesterUser.create({ data: { name: name as string, email: email as string, role: role as AdminUserRole, isActive: req.body?.isActive === undefined ? true : Boolean(req.body.isActive), passwordHash, mustChangePassword: true } });
+    return res.status(201).json({ data: adminSafeUser(user) });
+  } catch (error) {
+    if (typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002") return res.status(409).json(errorBody("DUPLICATE_EMAIL", "A user with this email already exists", { email: "Email is already in use" }));
+    const correlationId = randomUUID();
+    console.error("[" + correlationId + "] admin user create failed", error);
+    return res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to create User", undefined, correlationId));
+  }
+});
+
+app.patch("/api/admin/users/:userId", requireSession, requireNormalSession, requireRoles("ADMINISTRATOR"), requireCsrf, async (req: Request, res: Response) => {
+  const userId = positiveInteger(req.params.userId);
+  if (!userId) return adminUserNotFound(res);
+  const body = req.body ?? {};
+  const allowed = ["name", "email", "role", "isActive"];
+  const fields: Record<string, string> = {};
+  if (!Object.keys(body).some((key) => allowed.includes(key))) fields.body = "At least one editable field is required";
+  const name = Object.prototype.hasOwnProperty.call(body, "name") ? normalizeText(body.name) : undefined;
+  const email = Object.prototype.hasOwnProperty.call(body, "email") ? normalizeEmail(body.email) : undefined;
+  const role = Object.prototype.hasOwnProperty.call(body, "role") ? body.role : undefined;
+  if (name !== undefined && (!name || name.length > 120)) fields.name = "Name is required and must be at most 120 characters";
+  if (Object.prototype.hasOwnProperty.call(body, "email") && !email) fields.email = "A valid email is required";
+  if (role !== undefined && (typeof role !== "string" || !(adminUserRoles as readonly string[]).includes(role))) fields.role = "Role must be REQUESTER, IT_STAFF, or ADMINISTRATOR";
+  if (Object.prototype.hasOwnProperty.call(body, "isActive") && typeof body.isActive !== "boolean") fields.isActive = "isActive must be a boolean";
+  if (Object.keys(fields).length) return validationError(res, fields);
+  const auth = (req as AuthenticatedRequest).auth;
+  try {
+    const prisma = getPrisma();
+    const target = await prisma.requesterUser.findUnique({ where: { id: userId }, select: { id: true, role: true, isActive: true } });
+    if (!target) return adminUserNotFound(res);
+    const nextRole = (role ?? target.role) as AdminUserRole;
+    const nextActive = body.isActive === undefined ? target.isActive : body.isActive as boolean;
+    if (auth?.user.id === userId && nextActive === false) return res.status(409).json(errorBody("SELF_DEACTIVATION", "You cannot deactivate your own Administrator account"));
+    if (Object.prototype.hasOwnProperty.call(body, "email")) {
+      const duplicate = await prisma.requesterUser.findFirst({ where: { email: email as string, NOT: { id: userId } }, select: { id: true } });
+      if (duplicate) return res.status(409).json(errorBody("DUPLICATE_EMAIL", "A user with this email already exists", { email: "Email is already in use" }));
+    }
+    if (target.role === "ADMINISTRATOR" && target.isActive && (nextRole !== "ADMINISTRATOR" || !nextActive)) {
+      const activeAdmins = await prisma.requesterUser.count({ where: { role: "ADMINISTRATOR", isActive: true } });
+      if (activeAdmins <= 1) return res.status(409).json(errorBody("LAST_ADMIN", "At least one active Administrator must remain"));
+    }
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) data.name = name;
+    if (email !== undefined) data.email = email;
+    if (role !== undefined) data.role = role;
+    if (body.isActive !== undefined) data.isActive = body.isActive;
+    const updated = await prisma.$transaction(async (tx) => {
+      const user = await tx.requesterUser.update({ where: { id: userId }, data, select: adminUserFields });
+      if (nextActive === false) await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      return user;
+    });
+    return res.status(200).json({ data: adminSafeUser(updated) });
+  } catch (error) {
+    if (typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002") return res.status(409).json(errorBody("DUPLICATE_EMAIL", "A user with this email already exists", { email: "Email is already in use" }));
+    const correlationId = randomUUID();
+    console.error("[" + correlationId + "] admin user update failed", error);
+    return res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to update User", undefined, correlationId));
+  }
+});
+
+app.post("/api/admin/users/:userId/initial-password", requireSession, requireNormalSession, requireRoles("ADMINISTRATOR"), requireCsrf, async (req: Request, res: Response) => {
+  const userId = positiveInteger(req.params.userId);
+  if (!userId) return adminUserNotFound(res);
+  const initialPassword = req.body?.initialPassword;
+  const fields = validatePassword(initialPassword);
+  if (fields.password) return validationError(res, { initialPassword: fields.password });
+  try {
+    const passwordHash = await hashPassword(initialPassword as string);
+    const updated = await getPrisma().$transaction(async (tx) => {
+      const user = await tx.requesterUser.update({ where: { id: userId }, data: { passwordHash, mustChangePassword: true }, select: adminUserFields });
+      await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      return user;
+    });
+    return res.status(200).json({ data: adminSafeUser(updated) });
+  } catch (error) {
+    if (typeof error === "object" && error !== null && (error as { code?: string }).code === "P2025") return adminUserNotFound(res);
+    const correlationId = randomUUID();
+    console.error("[" + correlationId + "] admin initial password failed", error);
+    return res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to reset initial password", undefined, correlationId));
+  }
+});
 export default app;
