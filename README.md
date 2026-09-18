@@ -149,6 +149,27 @@ npm run build
 npm test
 ```
 
+## Lab 3 test harness and CI
+
+Lab 3 keeps its contract-first test entry points under
+`server/tests/lab-03/`, `client/tests/lab-03/`, and `e2e/lab-03/`.
+Unimplemented feature tests are explicitly marked `todo` or skipped until
+their implementation issue lands; they are not reported as passing behavior.
+
+The pinned Playwright harness is installed and run from `e2e/`:
+
+```powershell
+cd e2e
+npm ci
+npx playwright install chromium
+npm test
+```
+
+GitHub Actions runs the current server migration/seed baseline, server and
+client build/tests, and the E2E harness on pull requests targeting `main` or
+`lab3-staging`. The Lab 3 `npm run lab3:upgrade` orchestration is added with
+the migration issue before migration-specific CI assertions are enabled.
+
 Run the client checks from `client/`:
 
 ```powershell

@@ -15,5 +15,9 @@ server/prisma/*.db
 server/storage/attachments/*
 !server/storage/attachments/.gitkeep
 
+# Playwright artifacts
+e2e/playwright-report/
+e2e/test-results/
+
 # editor settings
 .vscode/

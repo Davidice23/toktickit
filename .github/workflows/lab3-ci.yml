@@ -1,0 +1,144 @@
+name: Lab 3 CI
+
+on:
+  pull_request:
+    branches: [main, lab3-staging]
+  push:
+    branches: [main, lab3-staging]
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    name: Server build and tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: toktickit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d toktickit_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: server
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/toktickit_test?schema=public
+      NODE_ENV: test
+      LAB3_SEED_INITIAL_PASSWORD: local-only-password
+      CSRF_SECRET: local-only-csrf-secret
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Install server dependencies
+        run: npm ci
+      - name: Apply Lab 3 upgrade and seed fixtures
+        run: npm run lab3:upgrade
+      - name: Build server
+        run: npm run build
+      - name: Run server tests
+        run: npm test
+
+  client:
+    name: Client build and tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install client dependencies
+        run: npm ci
+      - name: Build client
+        run: npm run build
+      - name: Run client tests
+        run: npm test
+
+  e2e-harness:
+    name: Lab 3 browser workflows
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: toktickit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d toktickit_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: e2e
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/toktickit_test?schema=public
+      NODE_ENV: test
+      LAB3_SEED_INITIAL_PASSWORD: local-only-password
+      LAB3_E2E_PASSWORD: Lab3-E2E-password!2026
+      CSRF_SECRET: local-only-csrf-secret
+      CLIENT_ORIGIN: http://127.0.0.1:5173
+      VITE_API_URL: http://127.0.0.1:3000
+      E2E_BASE_URL: http://127.0.0.1:5173
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Apply Lab 3 upgrade and seed fixtures
+        working-directory: server
+        run: npm run lab3:upgrade
+      - name: Build server
+        working-directory: server
+        run: npm run build
+      - name: Start API server
+        working-directory: server
+        run: nohup npm start > /tmp/toktickit-server.log 2>&1 &
+      - name: Wait for API server
+        run: |
+          for attempt in {1..30}; do
+            curl --fail --silent http://127.0.0.1:3000/api/health && exit 0
+            sleep 1
+          done
+          cat /tmp/toktickit-server.log
+          exit 1
+      - name: Install E2E dependencies
+        run: npm ci
+      - name: Install client dependencies for web server
+        working-directory: client
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run Lab 3 browser workflows
+        run: npm run test:lab3

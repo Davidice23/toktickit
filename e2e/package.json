@@ -1,0 +1,13 @@
+{
+  "name": "toktickit-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:lab3": "playwright test lab-03"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.51.0"
+  }
+}

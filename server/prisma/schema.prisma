@@ -25,12 +25,34 @@ model RequesterUser {
   id        Int      @id @default(autoincrement())
   name      String
   email     String   @unique
+  passwordHash String?
+  role      Role     @default(REQUESTER)
   isActive  Boolean  @default(true)
+  mustChangePassword Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  tickets   Ticket[]
+  tickets   Ticket[] @relation("RequesterTickets")
+  ownedTickets Ticket[] @relation("TicketOwner")
+  sessions  Session[]
+  comments  PublicComment[]
+  internalNotes InternalNote[]
 
   @@index([isActive, name])
+  @@map("User")
+}
+
+model Session {
+  id            Int          @id @default(autoincrement())
+  tokenHash     String       @unique
+  userId        Int
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  csrfTokenHash String
+  createdAt     DateTime     @default(now())
+  lastSeenAt    DateTime     @default(now())
+  user          RequesterUser @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, revokedAt, expiresAt])
 }
 
 model RelatedSystem {
@@ -57,12 +79,18 @@ model Ticket {
   requestedPriority RequestedPriority
   currentStatus     TicketStatus      @default(NEW)
   itPriority        ITPriority?
+  ownerId           Int?
+  requesterConfirmedResolved Boolean   @default(false)
+  requesterConfirmedResolvedAt DateTime?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
-  requester         RequesterUser     @relation(fields: [requesterId], references: [id], onDelete: Restrict)
+  requester         RequesterUser     @relation("RequesterTickets", fields: [requesterId], references: [id], onDelete: Restrict)
+  owner             RequesterUser?    @relation("TicketOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   category          Category          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   relatedSystem     RelatedSystem     @relation(fields: [relatedSystemId], references: [id], onDelete: Restrict)
   attachments       Attachment[]
+  publicComments    PublicComment[]
+  internalNotes     InternalNote[]
 
   @@unique([requesterId, submissionKey])
   @@index([requesterId, updatedAt])
@@ -70,6 +98,32 @@ model Ticket {
   @@index([requesterId, categoryId])
   @@index([requesterId, relatedSystemId])
   @@index([requesterId, requestedPriority])
+  @@index([ownerId, currentStatus])
+  @@index([currentStatus, itPriority, createdAt])
+}
+
+model PublicComment {
+  id        Int          @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  body      String
+  createdAt DateTime     @default(now())
+  ticket    Ticket       @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  author    RequesterUser @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt])
+}
+
+model InternalNote {
+  id        Int          @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  body      String
+  createdAt DateTime     @default(now())
+  ticket    Ticket       @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  author    RequesterUser @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt])
 }
 
 model Attachment {
@@ -94,8 +148,21 @@ enum RequestedPriority {
   URGENT
 }
 
+enum Role {
+  REQUESTER
+  IT_STAFF
+  ADMINISTRATOR
+}
+
 enum TicketStatus {
   NEW
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_REQUESTER
+  RESOLVED
+  CLOSED
+  REOPENED
+  CANCELLED
 }
 
 enum ITPriority {

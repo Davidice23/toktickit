@@ -1,38 +1,109 @@
-import { useEffect, useState } from "react";
-import { checkSystem, Category, fetchRequesters, Requester } from "./api.js";
+import { FormEvent, useEffect, useState } from "react";
+import { AuthSession, Category, changePassword, checkSystem, fetchCurrentUser, login, logout, User } from "./api.js";
 import CreateTicket from "./CreateTicket.js";
 import MyTickets from "./MyTickets.js";
 import TicketDetail from "./TicketDetail.js";
+import StaffTicketQueue from "./StaffTicketQueue.js";
+import StaffTicketDetail from "./StaffTicketDetail.js";
+import UserManagement from "./UserManagement.js";
 
 type UiState = "idle" | "loading" | "success" | "error";
-type RequesterUiState = "idle" | "loading" | "ready" | "empty" | "error";
+type AuthState = "loading" | "logged-out" | "authenticated";
+type Workspace = "requester" | "staff" | "admin";
+
+function LoginPanel({ onSuccess }: { onSuccess: (session: AuthSession) => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    try {
+      onSuccess(await login(email, password));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to sign in");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form className="requester-card" onSubmit={submit} aria-labelledby="login-heading">
+      <h2 id="login-heading">Sign in to TokTickIT</h2>
+      <p className="helper-text">Use your authenticated account to access the workspace for your role.</p>
+      <label htmlFor="login-email">Email</label>
+      <input id="login-email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
+      <label htmlFor="login-password">Password</label>
+      <input id="login-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+      {error && <div className="state-callout state-error" role="alert">{error}</div>}
+      <button className="btn btn-primary-green" type="submit" disabled={submitting}>{submitting ? "Signing in..." : "Sign in"}</button>
+    </form>
+  );
+}
+
+function ChangePasswordPanel({ session, onComplete }: { session: AuthSession; onComplete: (session: AuthSession) => void }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    try {
+      onComplete(await changePassword(currentPassword, newPassword, confirmPassword));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to change password");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form className="requester-card" onSubmit={submit} aria-labelledby="change-password-heading">
+      <h2 id="change-password-heading">Change your password</h2>
+      <p className="helper-text">A password change is required before using the TokTickIT workspace.</p>
+      <label htmlFor="current-password">Current password</label>
+      <input id="current-password" type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required />
+      <label htmlFor="new-password">New password</label>
+      <input id="new-password" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={12} required />
+      <label htmlFor="confirm-password">Confirm new password</label>
+      <input id="confirm-password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} minLength={12} required />
+      {error && <div className="state-callout state-error" role="alert">{error}</div>}
+      <button className="btn btn-primary-green" type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save password"}</button>
+      <span className="helper-text">Signed in as {session.user.email}</span>
+    </form>
+  );
+}
 
 export default function App() {
   const [state, setState] = useState<UiState>("idle");
   const [categories, setCategories] = useState<Category[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [requesterUiState, setRequesterUiState] = useState<RequesterUiState>("idle");
-  const [requesters, setRequesters] = useState<Requester[]>([]);
-  const [selectedRequester, setSelectedRequester] = useState<Requester | null>(null);
   const [createMode, setCreateMode] = useState(false);
-  const [selectedId, setSelectedId] = useState("");
   const [detailTicketId, setDetailTicketId] = useState<number | null>(null);
+  const [staffTicketId, setStaffTicketId] = useState<number | null>(null);
+  const [workspace, setWorkspace] = useState<Workspace>("requester");
+  const [authState, setAuthState] = useState<AuthState>("loading");
+  const [session, setSession] = useState<AuthSession | null>(null);
 
   useEffect(() => {
-    const storedId = localStorage.getItem("toktickit.devRequesterId");
-    if (!storedId) return;
-    fetchRequesters().then((available) => {
-      const requester = available.find(({ id }) => String(id) === storedId);
-      if (requester) setSelectedRequester(requester);
-      else localStorage.removeItem("toktickit.devRequesterId");
-    }).catch(() => {
-      localStorage.removeItem("toktickit.devRequesterId");
-    });
+    void fetchCurrentUser()
+      .then((current) => {
+        setSession(current);
+        setWorkspace(current.user.role === "ADMINISTRATOR" ? "admin" : current.user.role === "IT_STAFF" ? "staff" : "requester");
+        setAuthState("authenticated");
+      })
+      .catch(() => setAuthState("logged-out"));
   }, []);
 
   async function handleCheck() {
     setState("loading");
-
     try {
       const result = await checkSystem();
       setCategories(result.categories);
@@ -43,116 +114,109 @@ export default function App() {
     }
   }
 
-  async function loadRequesters() {
-    setRequesterUiState("loading");
-    try {
-      const result = await fetchRequesters();
-      setRequesters(result);
-      setRequesterUiState(result.length ? "ready" : "empty");
-    } catch {
-      setRequesters([]);
-      setRequesterUiState("error");
-    }
+  async function handleLogout() {
+    await logout().catch(() => undefined);
+    setSession(null);
+    setAuthState("logged-out");
+    setCreateMode(false);
+    setDetailTicketId(null);
+    setStaffTicketId(null);
+    setWorkspace("requester");
   }
 
-  function continueAsRequester() {
-    const requester = requesters.find(({ id }) => String(id) === selectedId);
-    if (!requester) return;
-    localStorage.setItem("toktickit.devRequesterId", String(requester.id));
-    setSelectedRequester(requester);
-    setRequesterUiState("idle");
+  const authenticated = authState === "authenticated" && session !== null;
+  const isStaff = authenticated && session.user.role !== "REQUESTER";
+  const isAdmin = authenticated && session.user.role === "ADMINISTRATOR";
+  const roleLabel: Record<User["role"], string> = { REQUESTER: "Requester", IT_STAFF: "IT Staff", ADMINISTRATOR: "Administrator" };
+
+  function showStaffQueue() {
+    setWorkspace("staff");
+    setStaffTicketId(null);
+    setMenuOpen(false);
   }
 
-  function changeRequester() {
-    localStorage.removeItem("toktickit.devRequesterId");
-    setSelectedRequester(null);
-    setSelectedId("");
-    loadRequesters();
+  function showAdminUsers() {
+    setWorkspace("admin");
+    setMenuOpen(false);
   }
+
+  function showMyTickets() {
+    setWorkspace("requester");
+    setCreateMode(false);
+    setDetailTicketId(null);
+    setMenuOpen(false);
+  }
+
+  function showCreateTicket() {
+    setWorkspace("requester");
+    setCreateMode(true);
+    setDetailTicketId(null);
+    setMenuOpen(false);
+  }
+
+  const pageTitle = isAdmin && workspace === "admin" ? "Administrator workspace" : isStaff ? "Staff operations workspace" : "Requester workspace";
+  const pageIntro = isAdmin && workspace === "admin"
+    ? "Manage user access, roles, account status, and initial passwords safely."
+    : isStaff
+      ? "Review, assign, and resolve operational Tickets with an auditable workflow."
+      : "A clear, responsive workspace for creating and tracking your IT requests.";
 
   return (
     <div className="app-shell">
       <header className="app-header">
         <a className="app-brand" href="#top" aria-label="TokTickIT home">TokTickIT</a>
-        <button
-          className="menu-toggle"
-          type="button"
-          aria-expanded={menuOpen}
-          aria-controls="primary-navigation"
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          Menu
-        </button>
-        <nav id="primary-navigation" className={`primary-navigation${menuOpen ? " is-open" : ""}`} aria-label="Primary navigation">
-          <a className={`nav-link${!createMode ? " is-active" : ""}`} href="#my-tickets" aria-current={!createMode ? "page" : undefined} onClick={() => { setCreateMode(false); setDetailTicketId(null); setMenuOpen(false); }}>My Tickets</a>
-          <a className={`nav-link${createMode ? " is-active" : ""}`} href="#create-ticket" aria-current={createMode ? "page" : undefined} onClick={() => { setCreateMode(true); setDetailTicketId(null); setMenuOpen(false); }}>Create Ticket</a>
-          <span className="requester-context" aria-label="Current Requester">Requester: {selectedRequester?.name ?? "Not selected"}</span>
-          <button className="nav-action" type="button" onClick={() => { setMenuOpen(false); setCreateMode(false); changeRequester(); }}>Change Requester</button>
-        </nav>
+        {authenticated && (
+          <>
+            <button className="menu-toggle" type="button" aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen((open) => !open)}>Menu</button>
+            <nav id="primary-navigation" className={`primary-navigation${menuOpen ? " is-open" : ""}`} aria-label="Primary navigation">
+              {isStaff ? (
+                <>
+                  <a className={`nav-link${workspace === "staff" ? " is-active" : ""}`} href="#staff-tickets" aria-current={workspace === "staff" ? "page" : undefined} onClick={showStaffQueue}>Staff Queue</a>
+                  {isAdmin && <a className={`nav-link${workspace === "admin" ? " is-active" : ""}`} href="#admin-users" aria-current={workspace === "admin" ? "page" : undefined} onClick={showAdminUsers}>User Management</a>}
+                </>
+              ) : (
+                <>
+                  <a className={`nav-link${workspace === "requester" && !createMode ? " is-active" : ""}`} href="#my-tickets" aria-current={workspace === "requester" && !createMode ? "page" : undefined} onClick={showMyTickets}>My Tickets</a>
+                  <a className={`nav-link${createMode ? " is-active" : ""}`} href="#create-ticket" aria-current={createMode ? "page" : undefined} onClick={showCreateTicket}>Create Ticket</a>
+                </>
+              )}
+              <span className="requester-context" aria-label="Current User">{session.user.name} <span className="role-badge">{roleLabel[session.user.role]}</span></span>
+              <button className="nav-action" type="button" onClick={() => { setMenuOpen(false); void handleLogout(); }}>Log out</button>
+            </nav>
+          </>
+        )}
       </header>
 
       <main id="top" className="app-main">
         <section className="page-card" aria-labelledby="page-title">
           <p className="eyebrow">IT Service Desk</p>
-          <h1 id="page-title">Requester workspace</h1>
-          <p className="page-intro">A clear, responsive workspace for creating and tracking your IT requests.</p>
+          <h1 id="page-title">{pageTitle}</h1>
+          <p className="page-intro">{pageIntro}</p>
 
-          {selectedRequester && createMode && <CreateTicket requesterId={selectedRequester.id} />}
-          {selectedRequester && !createMode && detailTicketId === null && <MyTickets requesterId={selectedRequester.id} onOpen={setDetailTicketId} />}
-          {selectedRequester && !createMode && detailTicketId !== null && <TicketDetail requesterId={selectedRequester.id} ticketId={detailTicketId} onBack={() => setDetailTicketId(null)} />}
+          {authState === "loading" && <div className="state-callout state-info" role="status">Checking your session...</div>}
+          {authState === "logged-out" && <LoginPanel onSuccess={(next) => { setSession(next); setWorkspace(next.user.role === "ADMINISTRATOR" ? "admin" : next.user.role === "IT_STAFF" ? "staff" : "requester"); setAuthState("authenticated"); }} />}
+          {authenticated && session.mustChangePassword && <ChangePasswordPanel session={session} onComplete={(next) => { setSession(next); setWorkspace(next.user.role === "ADMINISTRATOR" ? "admin" : next.user.role === "IT_STAFF" ? "staff" : "requester"); }} />}
 
-          {!selectedRequester && (
-            <section className="requester-card" aria-labelledby="requester-heading">
-              <h2 id="requester-heading">Select Development Requester</h2>
-              <p className="helper-text">This selector is for Lab 2 testing only; it is not login or authentication. Authentication arrives in Lab 3.</p>
-              {requesterUiState === "idle" && <button className="btn btn-secondary-green" type="button" onClick={loadRequesters}>Choose Requester</button>}
-              {requesterUiState === "loading" && <div className="state-callout state-info" role="status" aria-live="polite"><strong>Loading:</strong> Development Requesters...</div>}
-              {requesterUiState === "error" && <div className="state-callout state-error" role="alert"><strong>Unable to load Requesters.</strong><button className="retry-button" type="button" onClick={loadRequesters}>Retry</button></div>}
-              {requesterUiState === "empty" && <div className="state-callout state-warning" role="status">No active Development Requesters are available.</div>}
-              {requesterUiState === "ready" && <div className="requester-form">
-                <label htmlFor="requester-select">Development Requester</label>
-                <select id="requester-select" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-                  <option value="">Select a Requester</option>
-                  {requesters.map((requester) => <option key={requester.id} value={requester.id}>{requester.name}</option>)}
-                </select>
-                <button className="btn btn-primary-green" type="button" disabled={!selectedId} onClick={continueAsRequester}>Continue</button>
-              </div>}
-            </section>
+          {authenticated && !session.mustChangePassword && (
+            isStaff ? (
+              <>
+                {workspace === "staff" && staffTicketId === null && <StaffTicketQueue onOpen={setStaffTicketId} />}
+                {workspace === "staff" && staffTicketId !== null && <StaffTicketDetail ticketId={staffTicketId} onBack={() => setStaffTicketId(null)} />}
+                {isAdmin && workspace === "admin" && <UserManagement currentUserId={session.user.id} />}
+              </>
+            ) : (
+              <>
+                {createMode && <CreateTicket />}
+                {!createMode && detailTicketId === null && <MyTickets onOpen={setDetailTicketId} />}
+                {!createMode && detailTicketId !== null && <TicketDetail ticketId={detailTicketId} onBack={() => setDetailTicketId(null)} />}
+              </>
+            )
           )}
 
-          <button className="btn btn-primary-green" onClick={handleCheck} disabled={state === "loading"}>
-            {state === "loading" ? "Loading..." : "Check System"}
-          </button>
-
-          {state === "loading" && (
-            <div className="state-callout state-info" role="status" aria-live="polite">
-              <strong>Loading:</strong> Checking TokTickIT API...
-            </div>
-          )}
-
-          {state === "success" && (
-            <>
-              <div className="state-callout state-success" role="status">
-                <strong>System Status:</strong> Online
-              </div>
-
-              <section aria-labelledby="category-heading">
-                <h2 id="category-heading">IT Request Categories</h2>
-                <ul className="category-list">
-                  {categories.map((category) => (
-                    <li className="category-item" key={category.id}>{category.name}</li>
-                  ))}
-                </ul>
-              </section>
-            </>
-          )}
-
-          {state === "error" && (
-            <div className="state-callout state-error" role="alert">
-              <p><strong>System Status:</strong> Offline</p>
-              <p>Unable to connect to TokTickIT API</p>
-            </div>
-          )}
+          <button className="btn btn-primary-green" onClick={handleCheck} disabled={state === "loading"}>{state === "loading" ? "Loading..." : "Check System"}</button>
+          {state === "loading" && <div className="state-callout state-info" role="status" aria-live="polite"><strong>Loading:</strong> Checking TokTickIT API...</div>}
+          {state === "success" && <><div className="state-callout state-success" role="status"><strong>System Status:</strong> Online</div><section aria-labelledby="category-heading"><h2 id="category-heading">IT Request Categories</h2><ul className="category-list">{categories.map((category) => <li className="category-item" key={category.id}>{category.name}</li>)}</ul></section></>}
+          {state === "error" && <div className="state-callout state-error" role="alert"><p><strong>System Status:</strong> Offline</p><p>Unable to connect to TokTickIT API</p></div>}
         </section>
       </main>
     </div>
