@@ -19,19 +19,21 @@ export async function signIn(page: Page, email: string, workspaceHeading: RegExp
   const workspace = page.getByRole("heading", { name: workspaceHeading });
   const loginError = page.getByRole("alert");
   const logout = page.getByRole("button", { name: "Log out" });
-  await expect.poll(async () => (await changeHeading.isVisible()) || (await logout.isVisible()) || (await loginError.isVisible()), { timeout: 10_000 }).toBeTruthy();
+  const menu = page.getByRole("button", { name: "Menu" });
+  const authenticatedMarker = logout.or(menu);
+  await expect.poll(async () => (await changeHeading.isVisible()) || (await authenticatedMarker.isVisible()) || (await loginError.isVisible()), { timeout: 10_000 }).toBeTruthy();
   if (await changeHeading.isVisible()) {
     await page.getByLabel("Current password").fill(INITIAL_PASSWORD);
     await page.getByLabel("New password", { exact: true }).fill(E2E_PASSWORD);
     await page.getByLabel("Confirm new password").fill(E2E_PASSWORD);
     await page.getByRole("button", { name: "Save password" }).click();
     await expect(changeHeading).toBeHidden({ timeout: 10_000 });
-  } else if (!(await logout.isVisible())) {
+  } else if (!(await authenticatedMarker.isVisible())) {
     // The account may have been changed by an earlier serial test run.
     await submitCredentials(page, email, E2E_PASSWORD);
   }
 
-  await expect(logout).toBeVisible({ timeout: 10_000 });
+  await expect(authenticatedMarker).toBeVisible({ timeout: 10_000 });
   await expect(workspace).toBeVisible({ timeout: 10_000 });
 }
 
