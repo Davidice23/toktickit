@@ -676,10 +676,14 @@ app.patch("/api/staff/tickets/:ticketId/assignment", requireSession, requireNorm
   if (ownerId !== null) {
     const target = await prisma.requesterUser.findFirst({ where: { id: ownerId, isActive: true, role: { in: [...staffRoles] } }, select: { id: true, name: true, email: true, role: true, isActive: true, mustChangePassword: true } });
     if (!target) return res.status(400).json(errorBody("INVALID_OWNER", "Owner must be an active IT Staff or Administrator"));
-    const updated = await prisma.ticket.update({ where: { id: ticketId }, data: { ownerId }, select: { owner: { select: { id: true, name: true, email: true, role: true, isActive: true } } } });
+    const changed = await prisma.ticket.updateMany({ where: { id: ticketId, ownerId: ticket.ownerId, currentStatus: ticket.currentStatus }, data: { ownerId } });
+    if (!changed.count) return res.status(409).json(errorBody("ASSIGNMENT_CONFLICT", "Ticket ownership or status changed; reload before assigning"));
+    const updated = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, select: { owner: { select: { id: true, name: true, email: true, role: true, isActive: true } } } });
     return res.status(200).json({ data: updated });
   }
-  const updated = await prisma.ticket.update({ where: { id: ticketId }, data: { ownerId: null }, select: { owner: true } });
+  const changed = await prisma.ticket.updateMany({ where: { id: ticketId, ownerId: ticket.ownerId, currentStatus: ticket.currentStatus }, data: { ownerId: null } });
+  if (!changed.count) return res.status(409).json(errorBody("ASSIGNMENT_CONFLICT", "Ticket ownership or status changed; reload before unassigning"));
+  const updated = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, select: { owner: true } });
   return res.status(200).json({ data: updated });
 });
 
@@ -717,7 +721,16 @@ app.patch("/api/staff/tickets/:ticketId/status", requireSession, requireNormalSe
   if ((nextStatus === TicketStatus.RESOLVED || nextStatus === TicketStatus.CLOSED) && req.body.confirmation !== true) return validationError(res, { confirmation: "Confirmation is required for this status" });
   if (nextStatus === TicketStatus.REOPENED && !normalizeText(req.body.reason)) return validationError(res, { reason: "A reason is required when reopening" });
   if ((nextStatus === TicketStatus.IN_PROGRESS || nextStatus === TicketStatus.RESOLVED) && !ticket.ownerId) return validationError(res, { ownerId: "An active operational owner is required" });
-  const updated = await getPrisma().ticket.update({ where: { id: ticketId }, data: { currentStatus: nextStatus }, select: { id: true, currentStatus: true } });
+  const changed = await getPrisma().ticket.updateMany({
+    where: {
+      id: ticketId,
+      currentStatus: ticket.currentStatus,
+      ...(nextStatus === TicketStatus.IN_PROGRESS || nextStatus === TicketStatus.RESOLVED ? { ownerId: { not: null } } : {}),
+    },
+    data: { currentStatus: nextStatus },
+  });
+  if (!changed.count) return res.status(409).json(errorBody("STATUS_CONFLICT", "Ticket status or owner changed; reload before updating"));
+  const updated = await getPrisma().ticket.findUniqueOrThrow({ where: { id: ticketId }, select: { id: true, currentStatus: true } });
   return res.status(200).json({ data: updated });
 });
 
@@ -825,6 +838,7 @@ app.post("/api/admin/users", requireSession, requireNormalSession, requireRoles(
   if (!name || name.length > 120) fields.name = "Name is required and must be at most 120 characters";
   if (!email) fields.email = "A valid email is required";
   if (typeof role !== "string" || !(adminUserRoles as readonly string[]).includes(role)) fields.role = "Role must be REQUESTER, IT_STAFF, or ADMINISTRATOR";
+  if (req.body?.isActive !== undefined && typeof req.body.isActive !== "boolean") fields.isActive = "isActive must be a boolean";
   const passwordFields = validatePassword(initialPassword);
   if (passwordFields.password) fields.initialPassword = passwordFields.password;
   if (Object.keys(fields).length) return validationError(res, fields);
@@ -833,7 +847,7 @@ app.post("/api/admin/users", requireSession, requireNormalSession, requireRoles(
     const existing = await prisma.requesterUser.findUnique({ where: { email: email as string }, select: { id: true } });
     if (existing) return res.status(409).json(errorBody("DUPLICATE_EMAIL", "A user with this email already exists", { email: "Email is already in use" }));
     const passwordHash = await hashPassword(initialPassword as string);
-    const user = await prisma.requesterUser.create({ data: { name: name as string, email: email as string, role: role as AdminUserRole, isActive: req.body?.isActive === undefined ? true : Boolean(req.body.isActive), passwordHash, mustChangePassword: true } });
+    const user = await prisma.requesterUser.create({ data: { name: name as string, email: email as string, role: role as AdminUserRole, isActive: req.body?.isActive === undefined ? true : req.body.isActive as boolean, passwordHash, mustChangePassword: true } });
     return res.status(201).json({ data: adminSafeUser(user) });
   } catch (error) {
     if (typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002") return res.status(409).json(errorBody("DUPLICATE_EMAIL", "A user with this email already exists", { email: "Email is already in use" }));
@@ -861,30 +875,38 @@ app.patch("/api/admin/users/:userId", requireSession, requireNormalSession, requ
   const auth = (req as AuthenticatedRequest).auth;
   try {
     const prisma = getPrisma();
-    const target = await prisma.requesterUser.findUnique({ where: { id: userId }, select: { id: true, role: true, isActive: true } });
-    if (!target) return adminUserNotFound(res);
-    const nextRole = (role ?? target.role) as AdminUserRole;
-    const nextActive = body.isActive === undefined ? target.isActive : body.isActive as boolean;
-    if (auth?.user.id === userId && nextActive === false) return res.status(409).json(errorBody("SELF_DEACTIVATION", "You cannot deactivate your own Administrator account"));
-    if (Object.prototype.hasOwnProperty.call(body, "email")) {
-      const duplicate = await prisma.requesterUser.findFirst({ where: { email: email as string, NOT: { id: userId } }, select: { id: true } });
-      if (duplicate) return res.status(409).json(errorBody("DUPLICATE_EMAIL", "A user with this email already exists", { email: "Email is already in use" }));
-    }
-    if (target.role === "ADMINISTRATOR" && target.isActive && (nextRole !== "ADMINISTRATOR" || !nextActive)) {
-      const activeAdmins = await prisma.requesterUser.count({ where: { role: "ADMINISTRATOR", isActive: true } });
-      if (activeAdmins <= 1) return res.status(409).json(errorBody("LAST_ADMIN", "At least one active Administrator must remain"));
-    }
     const data: Record<string, unknown> = {};
     if (name !== undefined) data.name = name;
     if (email !== undefined) data.email = email;
     if (role !== undefined) data.role = role;
     if (body.isActive !== undefined) data.isActive = body.isActive;
-    const updated = await prisma.$transaction(async (tx) => {
+
+    // Serialize Administrator mutations in PostgreSQL. Counting outside the
+    // transaction allows two concurrent demotions to remove the final Admin.
+    const outcome = await prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(334, 3)::text AS lock');
+      const target = await tx.requesterUser.findUnique({ where: { id: userId }, select: { id: true, role: true, isActive: true } });
+      if (!target) return { kind: "missing" as const };
+      const nextRole = (role ?? target.role) as AdminUserRole;
+      const nextActive = body.isActive === undefined ? target.isActive : body.isActive as boolean;
+      if (auth?.user.id === userId && !nextActive) return { kind: "self" as const };
+      if (email !== undefined) {
+        const duplicate = await tx.requesterUser.findFirst({ where: { email: email as string, NOT: { id: userId } }, select: { id: true } });
+        if (duplicate) return { kind: "duplicate" as const };
+      }
+      if (target.role === "ADMINISTRATOR" && target.isActive && (nextRole !== "ADMINISTRATOR" || !nextActive)) {
+        const activeAdmins = await tx.requesterUser.count({ where: { role: "ADMINISTRATOR", isActive: true } });
+        if (activeAdmins <= 1) return { kind: "last" as const };
+      }
       const user = await tx.requesterUser.update({ where: { id: userId }, data, select: adminUserFields });
-      if (nextActive === false) await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
-      return user;
+      if (!nextActive) await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      return { kind: "updated" as const, user };
     });
-    return res.status(200).json({ data: adminSafeUser(updated) });
+    if (outcome.kind === "missing") return adminUserNotFound(res);
+    if (outcome.kind === "self") return res.status(409).json(errorBody("SELF_DEACTIVATION", "You cannot deactivate your own Administrator account"));
+    if (outcome.kind === "duplicate") return res.status(409).json(errorBody("DUPLICATE_EMAIL", "A user with this email already exists", { email: "Email is already in use" }));
+    if (outcome.kind === "last") return res.status(409).json(errorBody("LAST_ADMIN", "At least one active Administrator must remain"));
+    return res.status(200).json({ data: adminSafeUser(outcome.user) });
   } catch (error) {
     if (typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002") return res.status(409).json(errorBody("DUPLICATE_EMAIL", "A user with this email already exists", { email: "Email is already in use" }));
     const correlationId = randomUUID();

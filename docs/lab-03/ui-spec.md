@@ -1,6 +1,8 @@
 # Lab 3 Zen Green UI Specification
 
-> Contract status: Pending peer review. Implementation must not start until this contract is approved.
+> Contract status: Approved in PR #36. This document remains the UI acceptance
+> contract; the checklist below distinguishes verified remediation evidence from
+> remaining manual accessibility checks.
 
 This specification extends the Lab 2 Zen Green language. Lab 3 screens must look like one application, not a second visual system.
 
@@ -231,13 +233,14 @@ All widths must have no document-level horizontal scrolling, clipped labels, ove
 
 ## 12. Visual inspection checklist
 
-- [ ] Zen Green tokens match Lab 2.
-- [ ] Authenticated name and role are visible and correct.
-- [ ] Unauthorized navigation is absent and direct routes show safe Forbidden behavior.
-- [ ] Editable and read-only values are visually distinct.
-- [ ] Required markers, labels, and errors align.
-- [ ] Loading, busy, success, empty, no-results, forbidden, conflict, and failure states are distinct.
-- [ ] Status, priority, role, and ownership badges contain text.
-- [ ] Public Comments and Internal Notes cannot be confused.
-- [ ] Desktop, tablet, and mobile layouts retain equivalent information.
-- [ ] No clipping, overlap, hidden actions, or horizontal overflow exists.
+- [x] Zen Green tokens and shared shell are reused on Lab 3 screens.
+- [x] Authenticated name and role are visible; direct unauthorized API access is tested.
+- [x] Protected navigation is hidden from unauthorized roles; a forbidden route is handled safely.
+- [x] Editable forms and read-only Ticket facts have distinct treatments.
+- [x] Visible form labels and required-field messages align in inspected screens.
+- [ ] Every loading, busy, success, empty, no-results, forbidden, conflict, and unexpected failure mode has been visually inspected; automated coverage is partial.
+- [x] Status, priority, role, and ownership badges contain text.
+- [x] Public Comments and Internal Notes are visibly separated and requester visibility is browser-tested.
+- [x] Fresh 1440px, 820px, and 390px screenshots retain queue/detail/admin information.
+- [x] Automated overflow checks pass at all three widths; inspected forms no longer clip or overlap.
+- [ ] Full keyboard/focus/contrast audit across every modal and error state is complete.

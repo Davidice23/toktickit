@@ -1,15 +1,22 @@
 import { execFile } from "node:child_process";
+import { resolve } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-const runner = process.platform === "win32" ? "npx.cmd" : "npx";
 
-async function run(command: string, args: string[]) {
-  await execFileAsync(command, args, { cwd: process.cwd(), env: process.env, windowsHide: true });
+async function run(packageCli: string, args: string[]) {
+  const script = resolve(process.cwd(), "node_modules", packageCli);
+  const { stdout, stderr } = await execFileAsync(process.execPath, [script, ...args], {
+    cwd: process.cwd(),
+    env: process.env,
+    windowsHide: true,
+  });
+  if (stdout) process.stdout.write(stdout);
+  if (stderr) process.stderr.write(stderr);
 }
 
-await run(runner, ["prisma", "migrate", "deploy"]);
-await run(runner, ["tsx", "scripts/lab3/backfill-credentials.ts"]);
-await run(runner, ["tsx", "scripts/lab3/verify-migration.ts"]);
-await run(runner, ["tsx", "scripts/lab3/finalize-constraints.ts"]);
-await run(runner, ["tsx", "prisma/seed.ts"]);
+await run("prisma/build/index.js", ["migrate", "deploy"]);
+await run("tsx/dist/cli.mjs", ["scripts/lab3/backfill-credentials.ts"]);
+await run("tsx/dist/cli.mjs", ["scripts/lab3/verify-migration.ts"]);
+await run("tsx/dist/cli.mjs", ["scripts/lab3/finalize-constraints.ts"]);
+await run("tsx/dist/cli.mjs", ["prisma/seed.ts"]);

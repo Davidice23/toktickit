@@ -1,6 +1,9 @@
 import { getPrisma } from "../src/prisma.js";
 import {
   CATEGORY_NAMES,
+  LAB3_ATTACHMENT_FIXTURE,
+  LAB3_MESSAGE_FIXTURES,
+  LAB3_TICKET_FIXTURES,
   RELATED_SYSTEM_NAMES,
   REQUESTERS,
   seedReferenceData,
@@ -11,7 +14,7 @@ async function main() {
   await seedReferenceData(prisma);
 
   console.log(
-    `Seeded ${CATEGORY_NAMES.length} categories, ${RELATED_SYSTEM_NAMES.length} related systems, and ${REQUESTERS.length} requesters.`,
+    `Seeded ${CATEGORY_NAMES.length} categories, ${RELATED_SYSTEM_NAMES.length} related systems, ${REQUESTERS.length} requesters, ${LAB3_TICKET_FIXTURES.length} demo Tickets, ${LAB3_MESSAGE_FIXTURES.length} demo messages, and ${LAB3_ATTACHMENT_FIXTURE.originalName}.`,
   );
 }
 
