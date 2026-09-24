@@ -38,6 +38,7 @@ for (const [size, width, height] of [["desktop", 1440, 900], ["tablet", 820, 900
     }
     if (size === "desktop") {
       await page.getByRole("button", { name: "Create User" }).first().click();
+      await page.getByRole("button", { name: "Create User", exact: true }).last().scrollIntoViewIfNeeded();
       await capture(page, "user-management", "desktop-create.png");
     }
 
