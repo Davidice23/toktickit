@@ -114,8 +114,9 @@ h2 { margin-top: 32px; font-size: 1.25rem; }
 .queue-filters input, .queue-filters select, .control-card input, .control-card select, .control-card textarea, .public-comments textarea, .internal-notes textarea { min-height: 44px; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text); background: var(--color-surface); font: inherit; }
 .queue-filter-wide { grid-column: span 2; }
 .queue-filter-actions { display: flex !important; align-items: end; flex-wrap: wrap; gap: 8px; grid-column: span 2; }
-.staff-queue-table td { min-width: 100px; }
-.staff-queue-table td:nth-child(3) { min-width: 180px; }
+.staff-queue-table td { min-width: 0; }
+.queue-cell-stack { display: grid; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.queue-cell-stack > .status-badge { justify-self: start; }
 .staff-ticket-detail .detail-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .operational-controls { padding: 18px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-pale-green); }
 .operational-controls > h3 { margin-top: 0; }
@@ -131,6 +132,9 @@ h2 { margin-top: 32px; font-size: 1.25rem; }
 .internal-notes { border-color: #d0a24c; background: #fffaf0; }
 .public-comments li, .internal-notes li { margin-bottom: 12px; }
 .public-comments li p, .internal-notes li p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.public-comments form, .internal-notes form { display: grid; gap: 8px; }
+.public-comments form label, .internal-notes form label { font-weight: 600; }
+.public-comments form textarea, .internal-notes form textarea { width: 100%; }
 
 @media (max-width: 960px) {
   .queue-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -143,6 +147,13 @@ h2 { margin-top: 32px; font-size: 1.25rem; }
   .queue-filter-actions { align-items: stretch; flex-direction: column; }
   .queue-filter-actions .btn { width: 100%; }
   .staff-ticket-detail .detail-grid { grid-template-columns: 1fr; }
+  .staff-queue-table td > .queue-cell-stack { flex: 1 1 0; text-align: right; }
+  .staff-queue-table td::before { flex: 0 0 40%; }
+  .admin-user-table td[data-label="Name"] { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 4px 10px; }
+  .admin-user-table td[data-label="Name"]::before { grid-row: 1 / span 2; }
+  .admin-user-table td[data-label="Name"] strong, .admin-user-table td[data-label="Name"] .private-badge { grid-column: 2; min-width: 0; overflow-wrap: anywhere; }
+  .admin-user-table td[data-label="Name"] .private-badge { justify-self: start; max-width: 100%; margin-left: 0; white-space: normal; }
+  .admin-user-table td[data-label="Email"] { overflow-wrap: anywhere; }
 }
 
 .admin-user-filters { display: grid; grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr) auto; align-items: end; gap: 12px; margin: 24px 0; padding: 18px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-pale-green); }

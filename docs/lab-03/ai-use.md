@@ -1,38 +1,59 @@
-# Lab 3 AI Use and Reflection
+# Lab 3 AI Use and My Reflection
 
-> Contract status: Pending peer review. Implementation must not start until this contract is approved.
+This is a selected, truthful account of how AI assisted Lab 3. Prompt entries
+summarize the student's requests; they are not presented as verbatim transcripts.
+The repository, peer review, tests, and final submission remain the student's
+responsibility. No AI review is represented as a human peer approval.
 
-This record describes the planned use of two LLM roles. It does not claim that implementation, testing, review, or release work has been completed.
+## Roles and boundaries
 
-## LLM roles
+- **Sol (planning/audit):** interpreted the 18-page Lab 3 sheet, decomposed
+  Answer Parts 1–9, audited the Lab 2 baseline, drafted Spec DD/Test DD
+  contracts, and later checked the implementation against them.
+- **Luna and Terra (implementation/remediation):** implemented issue slices and
+  investigated failing tests or mismatches under the approved contract.
+- **Codex (current verification/reporting):** reproduced local checks,
+  strengthened migration/seed and cross-role browser tests, captured new browser
+  screenshots, corrected stale documentation, and assembled evidence.
+- **Student:** approved the engineering contract and branch/review workflow,
+  requested an actual peer review from Sxr1n, decided when reviewed PRs could
+  merge, and must inspect the final PDF and submission on main.
 
-- Sol: planning and specification agent. Sol interprets the handout, audits the baseline, proposes the dependency graph, and drafts the engineering contract and test traceability.
-- Luna: coding and execution agent. Luna will implement only after the contract is approved, work issue by issue, run tests, preserve evidence, and report actual results.
-- Human owner: reviews requirements, approves decisions, checks commands and evidence, responds to peer review, and decides whether the Definition of Done is satisfied.
+## Selected prompts and what was checked
 
-## Selected planning prompts
-
-The following are summaries of eight selected planning prompts used to prepare this contract. Exact conversational wording and later coding prompts should be retained by the student when the implementation phase begins.
-
-| No. | Prompt summary | Intended use |
-| --- | --- | --- |
-| 1 | Read the Lab 3 handout completely and explain all nine rubric parts, mandatory scope, exclusions, and required evidence. | Requirement discovery |
-| 2 | Inspect the Lab 2 repository without changing it and report the branch, dirty files, current identity model, test harness, and safest starting commit. | Baseline and risk audit |
-| 3 | Design an authorization matrix for Requester, IT Staff, and Administrator, including ownership and forbidden direct API calls. | Security contract |
-| 4 | Propose a PostgreSQL/Prisma migration that preserves existing Requester IDs, Tickets, Attachments, and seed repeatability. | Data evolution |
-| 5 | Compare session approaches for the existing Express/Vite stack and specify opaque cookies, expiration, logout invalidation, CSRF, CORS, and safe errors. | Authentication design |
-| 6 | Define the exact REST endpoints and response/error envelopes for login, Requester regression, Staff Queue/Detail, comments/notes, and Admin users. | API contract |
-| 7 | Extend the Lab 2 Zen Green UI into Login, Change Password, Staff Queue, Staff Detail, and User Management with responsive/accessibility states. | UI contract |
-| 8 | Build a pre-implementation test plan mapping every acceptance criterion to server, client, authorization, migration, responsive, and E2E tests. | Test DD and traceability |
+| No. | Student prompt summary | AI output | Human/technical verification |
+| --- | --- | --- | --- |
+| 1 | Read Lab 3 carefully and make a detailed plan that follows the lab. | Nine-part rubric and dependency map. | Compared against the supplied `Lab_3_sheet.pdf`. |
+| 2 | Begin Phase 0 and prepare the engineering contract before coding. | Specification, API, UI, tests, review and AI-use documents. | PR #36 was peer-reviewed before dependent implementation. |
+| 3 | Explain where the engineering contract lives and what it means. | Document map and decisions. | Contract files remain inspectable under `docs/lab-03/`. |
+| 4 | Continue after a merge, recheck, and do the next issue. | Incremental feature/PR work. | Branch targets and merged PR history were checked; a user merge claim was not treated as proof by itself. |
+| 5 | Review a friend's PR and help prepare comments. | Suggested review observations. | Only actual GitHub reviews by a real account count as peer review; AI suggestions are not substituted. |
+| 6 | Audit the completed Lab 3 against the plan, lab, and contract before reporting. | Gap list for migration, seed, tests, UI, evidence and docs. | Reproduced focused server, client, and browser tests rather than accepting old checklist ticks. |
+| 7 | Fix Lab 3 remediation and then make the report. | Legacy-data migration test, repeat-safe fixtures, safer API mutations, responsive fixes, new browser evidence. | Local isolated-schema tests and real-browser runs were executed; results are recorded in `tests.md`. |
+| 8 | Capture fresh Git/code/web evidence and make a complete report. | New GitHub and responsive application screenshots plus this evidence-based report. | Screenshots are labeled by source and time; the final PDF is rendered and visually checked. |
 
 ## My Reflection
 
-Placeholder for the human reflection after the contract review and implementation cycle. Implementation has not started. The student will describe which planning suggestions were accepted, which were corrected after peer review, how the coding agent's output was independently checked, and what was learned from red/green tests and final evidence.
+I used AI to make a complex, multi-role lab easier to break into reviewable
+issues. The most useful planning decision was to approve the engineering
+contract before implementation. That kept the role matrix, migration, API
+errors, and test expectations visible when later code changed.
 
-## Evidence to retain later
+I also learned that a green CI badge does not prove every line of a test plan:
+some earlier documentation described planned scenarios more broadly than the
+actual assertions. In remediation, I required repeat-safe seed checks, a
+legacy-data migration test, local API/client tests, and a browser journey that
+starts as a Requester and ends with a Staff response. I checked that an
+Internal Note stays hidden from the Requester. This improved the evidence and
+made the remaining limits explicit instead of hiding them.
 
-- The approved contract PR and review comments.
-- The final prompts used with Sol and Luna.
-- Red/green test evidence for each implementation Issue.
-- Human decisions that changed the proposed authorization, migration, API, UI, or test design.
-- Final-main commands and screenshots used in Answer Parts 1 through 9.
+Sxr1n's GitHub review is separate from AI assistance. My responsibility is to
+read review comments, answer them, verify the change, and only submit the
+version whose branch, CI, and report evidence match.
+
+## Limitations
+
+AI-generated code and narrative can be wrong. A local passing run is not a
+passing final-main CI run; screenshots from an isolated local database are
+demonstrations, not proof of production security. Any rubric item not
+directly demonstrated is reported as such in the test record and PDF.
