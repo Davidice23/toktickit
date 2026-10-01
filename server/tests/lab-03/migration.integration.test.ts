@@ -10,7 +10,7 @@ describe("Lab 3 migration foundation", () => {
     const prisma = getPrisma();
     const tables = await prisma.$queryRaw<Array<{ table_name: string }>>`
       SELECT table_name FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_name IN ('User', 'RequesterUser', 'Session')
+      WHERE table_schema = current_schema() AND table_name IN ('User', 'RequesterUser', 'Session')
       ORDER BY table_name
     `;
     expect(tables.map(({ table_name }) => table_name)).toEqual(["Session", "User"]);

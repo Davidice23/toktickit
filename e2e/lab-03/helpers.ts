@@ -38,6 +38,11 @@ export async function signIn(page: Page, email: string, workspaceHeading: RegExp
 }
 
 export async function signOut(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Log out" }).click();
+  const logout = page.getByRole("button", { name: "Log out" });
+  if (!(await logout.isVisible())) {
+    const menu = page.getByRole("button", { name: "Menu" });
+    if (await menu.isVisible()) await menu.click();
+  }
+  await logout.click();
   await expect(page.getByRole("heading", { name: "Sign in to TokTickIT" })).toBeVisible();
 }

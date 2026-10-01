@@ -18,6 +18,7 @@ describe("Lab 3 mandatory Change Password flow", () => {
 
     expect(await screen.findByRole("heading", { name: "Change your password" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "My Tickets" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Primary navigation" })).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Current password"), "temporary-password");
     await user.type(screen.getByLabelText("New password"), "new-password-123");

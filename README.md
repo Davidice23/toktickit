@@ -1,222 +1,105 @@
-# TokTickIT
+# TokTickIT — CPE334 Labs 1–3
 
-TokTickIT is an IT service desk application developed for CPE334 Software
-Engineering in the Age of AI Agents. Lab 1 delivers a small full-stack vertical
-slice that connects a React user interface to an Express REST API and a
-PostgreSQL database through Prisma.
+TokTickIT is a full-stack IT service desk built with React/TypeScript, Express,
+Prisma, and PostgreSQL. Lab 3 replaces the Lab 2 development-only requester
+selector and spoofable `X-Requester-Id` header with authenticated cookie sessions,
+role-based authorization, and an operational Staff/Admin workflow.
 
-## Lab 2 development identity warning
+## Lab 3 capabilities
 
-Lab 2 uses a Development Requester selector and `X-Requester-Id` header only to
-simulate requester-specific behavior. This mechanism is deliberately spoofable:
-a client can change the header and impersonate another seeded Requester. It is
-not login, authentication, authorization, or a security boundary. Lab 3 must
-replace it with a server-verified authenticated identity.
+- Requester, IT Staff, and Administrator accounts; Argon2id password hashes;
+  first-login password change; HttpOnly sessions, CSRF protection, and logout.
+- Session-owned Requester Ticket creation, listing, detail, public comments,
+  resolution indication, and Attachment upload/download/removal.
+- Staff Queue with search, status/priority/ownership filters, sorting, and
+  pagination; Staff Detail with claim/reassign, IT Priority, allowed status
+  transitions, requester-visible comments, private notes, and read-only
+  Attachment access.
+- Administrator User Management with create/edit/reset, active state, duplicate
+  email protection, session revocation, and last-active-admin protection.
+- Repeat-safe fictional Lab 3 fixtures: active/inactive users, Tickets across all
+  statuses, varied priorities/owners, comments, notes, and an Attachment.
 
-## Lab 1 goal
+The [engineering contract](docs/lab-03/specification.md),
+[API contract](docs/lab-03/api-spec.md), [UI contract](docs/lab-03/ui-spec.md),
+[test plan](docs/lab-03/tests.md), [peer-review record](docs/lab-03/reviewer.md),
+and [AI-use reflection](docs/lab-03/ai-use.md) are under `docs/lab-03/`.
 
-The completed Lab 1 application lets a user select **Check System** and see:
+## Set up locally
 
-- whether the TokTickIT API is online;
-- the supported IT request categories stored in PostgreSQL;
-- a loading state while requests are running; and
-- a useful error message when the API or database is unavailable.
+Install Node.js, npm, and PostgreSQL. Copy `server/.env.example` to
+`server/.env` and `client/.env.example` to `client/.env`; supply a **local**
+`DATABASE_URL` and point `VITE_API_URL` to the API (normally
+`http://localhost:3000`). Never commit `.env` files or real credentials.
 
-## Lab 2 status
+In separate terminals:
 
-Lab 2 extends the slice with a Development Requester context, owned Ticket
-creation/list/detail, and an Attachment lifecycle (upload, owned download,
-and soft removal). The integration branch is `lab2-staging`; feature work is
-completed through Issue #22. Issue #23 tracks final E2E, responsive screenshots,
-documentation, and the release PR to `main`. See
-[`docs/lab-02/release-readiness.md`](docs/lab-02/release-readiness.md) for the
-current evidence and remaining release checks.
-
-## Technology stack
-
-- Client: React, TypeScript, Vite, and Bootstrap
-- Server: Node.js, Express, and TypeScript
-- Database: PostgreSQL with Prisma ORM
-- Testing: Vitest, Testing Library, and Supertest
-- Workflow: GitHub Issues, GitHub Projects, feature branches, peer-reviewed
-  Pull Requests, `lab1-staging`, and `main`
-
-## Repository structure
-
-```text
-toktickit/
-|-- client/                 React frontend
-|   |-- src/
-|   `-- tests/lab-01/
-|-- server/                 Express backend
-|   |-- prisma/
-|   |-- src/
-|   `-- tests/lab-01/
-|-- docs/lab-01/            Lab evidence and records
-|-- .gitignore
-`-- README.md
+```powershell
+cd server
+npm ci
+npm run lab3:upgrade
+npm run dev
 ```
-
-## Prerequisites
-
-Install these tools before running the project:
-
-- Git
-- Node.js and npm
-- PostgreSQL
-
-Confirm that PostgreSQL is accepting connections on the configured host and
-port before running database migrations or seeds.
-
-## Install dependencies
-
-From the repository root, install the client packages:
 
 ```powershell
 cd client
-npm install
-```
-
-Then install the server packages:
-
-```powershell
-cd ../server
-npm install
-```
-
-If PowerShell blocks `npm.ps1`, use `npm.cmd` in place of `npm`.
-
-## Environment variables
-
-Copy the example files and keep the real `.env` files only on your local
-machine:
-
-```powershell
-Copy-Item client/.env.example client/.env
-Copy-Item server/.env.example server/.env
-```
-
-Client variable:
-
-```env
-VITE_API_URL="http://localhost:3000"
-```
-
-Server variables:
-
-```env
-DATABASE_URL="postgresql://USERNAME:PASSWORD@localhost:5432/toktickit?schema=public"
-PORT=3000
-```
-
-Replace `USERNAME` and `PASSWORD` with local PostgreSQL credentials. Never
-commit either `.env` file.
-
-## Database preparation
-
-The Category model, migration, and idempotent seed are included. Run these
-commands from `server/`:
-
-```powershell
-npm run prisma:migrate -- --name init
-npm run prisma:seed
-```
-
-## Run the application
-
-Start the server from `server/`:
-
-```powershell
+npm ci
 npm run dev
 ```
 
-The API listens on `http://localhost:3000` by default.
+Open `http://localhost:5173`. `lab3:upgrade` applies committed migrations,
+backfills Lab 2 Requesters without replacing their IDs or Tickets, and runs the
+repeat-safe seed. Set `LAB3_SEED_INITIAL_PASSWORD` to a throwaway local value
+(the test-only fallback is `local-only-password`), never a personal one. On first login,
+seeded users must change it. See `server/.env.example` for other required
+environment variables such as `CSRF_SECRET` and the allowed client origin.
 
-In a second terminal, start the client from `client/`:
+The fictional seed accounts include `anan.chaiya@example.test` (Requester),
+`it.staff.one@example.test` (IT Staff), and `admin@example.test`
+(Administrator). An inactive account is intentionally unable to sign in.
+
+## Verify
 
 ```powershell
-npm run dev
-```
-
-Open `http://localhost:5173` in a browser.
-
-## Build and test
-
-Run the server checks from `server/`:
-
-```powershell
+cd server
+npm run test:lab3
 npm run build
-npm test
 ```
 
-## Lab 3 test harness and CI
-
-Lab 3 keeps its contract-first test entry points under
-`server/tests/lab-03/`, `client/tests/lab-03/`, and `e2e/lab-03/`.
-Unimplemented feature tests are explicitly marked `todo` or skipped until
-their implementation issue lands; they are not reported as passing behavior.
-
-The pinned Playwright harness is installed and run from `e2e/`:
+```powershell
+cd client
+npm test
+npm run build
+```
 
 ```powershell
 cd e2e
 npm ci
 npx playwright install chromium
-npm test
+npm run test:lab3
 ```
 
-GitHub Actions runs the current server migration/seed baseline, server and
-client build/tests, and the E2E harness on pull requests targeting `main` or
-`lab3-staging`. The Lab 3 `npm run lab3:upgrade` orchestration is added with
-the migration issue before migration-specific CI assertions are enabled.
+The E2E suite needs the seeded test database and running API. The Playwright
+configuration starts the Vite client when needed. On a local Windows machine
+with Chrome but no Playwright Chromium download, set `PLAYWRIGHT_CHANNEL=chrome`.
+Do not point tests or `lab3:upgrade` at a production database. Current local
+verification and any remaining gaps are recorded in `docs/lab-03/tests.md`;
+passing local checks are not a substitute for a green final-`main` CI run.
 
-Run the client checks from `client/`:
-
-```powershell
-npm run build
-npm test
-```
-
-The final Lab 1 release contains seven passing automated tests: three server
-tests and four client tests. The commands above also verify both production
-builds.
-
-## Lab 1 API contracts
-
-The final Lab 1 release provides these endpoints:
-
-- `GET /api/health` - implemented in Issue 2
-- `GET /api/categories` - implemented in Issue 4 after the Issue 3 database work
-
-## Git workflow
-
-`main` is the stable release branch and `lab1-staging` is the Lab 1 integration
-branch. Do not develop directly on either branch.
+## Repository and workflow
 
 ```text
-feature branch -> Pull Request -> lab1-staging -> release Pull Request -> main
+client/                         React application and component tests
+server/                         Express API, Prisma migrations/seed, API tests
+e2e/lab-03/                     Browser journeys and responsive capture
+artifacts/lab-03/screenshots/    Fresh Lab 3 browser evidence
+docs/lab-03/                    Approved contract and review/test records
+.github/workflows/lab3-ci.yml    Server, client, and browser CI
 ```
 
-Required feature branches:
+Feature branches are reviewed into `lab3-staging`; a release PR is reviewed
+into `main`. Each PR should have passing applicable checks and a genuine peer
+review. `main` is the submission source of truth. The Lab 2 identity header was
+only a testing convenience and is **not** a security boundary.
 
-- `feature/1-project-foundation`
-- `feature/2-health-check`
-- `feature/3-category-seed`
-- `feature/4-category-list`
-
-Every feature Pull Request requires passing checks and peer review before it is
-merged into `lab1-staging`.
-
-## Security rules
-
-Never commit:
-
-- `.env` files;
-- passwords, API keys, or database credentials;
-- `node_modules/`;
-- generated build output; or
-- large temporary files.
-
-## Author
-
-Wachirawit Photchamnian - 67070505206 - GitHub: `Davidice23`
+Author: Wachirawit Photchamnian — 67070505206 — GitHub `Davidice23`.

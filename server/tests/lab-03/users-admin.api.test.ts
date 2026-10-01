@@ -51,6 +51,24 @@ describe.sequential("Lab 3 Administrator User Management API", () => {
     const invalidPassword = await admin.agent.post("/api/admin/users").set("X-CSRF-Token", admin.csrfToken).send({ name: "Invalid", email: `invalid-${randomUUID()}@example.test`, role: "REQUESTER", initialPassword: "short" });
     expect(invalidPassword.status).toBe(400);
     expect(invalidPassword.body.error.fields.initialPassword).toBeDefined();
+
+    const invalidRole = await admin.agent.post("/api/admin/users").set("X-CSRF-Token", admin.csrfToken).send({ name: "Invalid", email: `invalid-role-${randomUUID()}@example.test`, role: "SUPERUSER", initialPassword: "local-only-password" });
+    expect(invalidRole.status).toBe(400);
+    expect(invalidRole.body.error.fields.role).toBeDefined();
+
+    const invalidActive = await admin.agent.post("/api/admin/users").set("X-CSRF-Token", admin.csrfToken).send({ name: "Invalid", email: `invalid-active-${randomUUID()}@example.test`, role: "REQUESTER", isActive: "false", initialPassword: "local-only-password" });
+    expect(invalidActive.status).toBe(400);
+    expect(invalidActive.body.error.fields.isActive).toBeDefined();
+  });
+
+  it("prevents self-deactivation and removal of the last active Administrator", async () => {
+    const self = await admin.agent.patch(`/api/admin/users/${admin.userId}`).set("X-CSRF-Token", admin.csrfToken).send({ isActive: false });
+    expect(self.status).toBe(409);
+    expect(self.body.error.code).toBe("SELF_DEACTIVATION");
+
+    const last = await admin.agent.patch(`/api/admin/users/${admin.userId}`).set("X-CSRF-Token", admin.csrfToken).send({ role: "REQUESTER" });
+    expect(last.status).toBe(409);
+    expect(last.body.error.code).toBe("LAST_ADMIN");
   });
 
   it("updates activation and revokes/reset sessions without exposing passwords", async () => {

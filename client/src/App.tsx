@@ -154,8 +154,12 @@ export default function App() {
     setMenuOpen(false);
   }
 
-  const pageTitle = isAdmin && workspace === "admin" ? "Administrator workspace" : isStaff ? "Staff operations workspace" : "Requester workspace";
-  const pageIntro = isAdmin && workspace === "admin"
+  const pageTitle = authenticated && session.mustChangePassword
+    ? "Password change required"
+    : isAdmin && workspace === "admin" ? "Administrator workspace" : isStaff ? "Staff operations workspace" : "Requester workspace";
+  const pageIntro = authenticated && session.mustChangePassword
+    ? "Choose a new password before entering your workspace."
+    : isAdmin && workspace === "admin"
     ? "Manage user access, roles, account status, and initial passwords safely."
     : isStaff
       ? "Review, assign, and resolve operational Tickets with an auditable workflow."
@@ -165,7 +169,7 @@ export default function App() {
     <div className="app-shell">
       <header className="app-header">
         <a className="app-brand" href="#top" aria-label="TokTickIT home">TokTickIT</a>
-        {authenticated && (
+        {authenticated && !session.mustChangePassword && (
           <>
             <button className="menu-toggle" type="button" aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen((open) => !open)}>Menu</button>
             <nav id="primary-navigation" className={`primary-navigation${menuOpen ? " is-open" : ""}`} aria-label="Primary navigation">
@@ -185,6 +189,7 @@ export default function App() {
             </nav>
           </>
         )}
+        {authenticated && session.mustChangePassword && <button className="nav-action" type="button" onClick={() => { void handleLogout(); }}>Log out</button>}
       </header>
 
       <main id="top" className="app-main">

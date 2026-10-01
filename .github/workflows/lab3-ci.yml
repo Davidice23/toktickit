@@ -142,3 +142,13 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run Lab 3 browser workflows
         run: npm run test:lab3
+      - name: Upload browser screenshots and Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab3-browser-evidence
+          path: |
+            artifacts/lab-03/screenshots
+            e2e/playwright-report
+            e2e/test-results
+          if-no-files-found: warn
