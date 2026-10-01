@@ -17,6 +17,8 @@ test("Administrator can search users and create one without password disclosure"
   await page.getByLabel("Role", { exact: true }).selectOption("REQUESTER");
   await page.getByLabel("Initial password").fill("Temporary-E2E!2026");
   await page.getByRole("button", { name: "Create User", exact: true }).last().click();
-  await expect(page.getByRole("status")).toContainText("User created");
+  await expect(
+    page.getByRole("status").filter({ hasText: "User created" }),
+  ).toBeVisible();
   await expect(page.getByText("Temporary-E2E!2026")).toHaveCount(0);
 });
