@@ -36,13 +36,15 @@ the final approval of all remaining decision-register rows.
 | 2026-09-17 06:57 UTC | [PR #38](https://github.com/Davidice23/toktickit/pull/38) | Sxr1n | Approved the test/CI scaffolding; requested a Playwright `webServer` and an explicit clarification that scaffolding does not bypass the Contract gate. | Addressed in Issue #39 / this follow-up PR. | Approved |
 | 2026-09-17 08:05 UTC | [PR #44](https://github.com/Davidice23/toktickit/pull/44) | Sxr1n | Approved the stable CSRF derivation and the reconciliation of the decision-register summary; confirmed that the remaining decision rows stay pending. | Implemented the deterministic per-session CSRF derivation, regression assertion, and explicit pending-decision wording. | Approved |
 | 2026-09-17 12:30 UTC | [Issue #45 approval](https://github.com/Davidice23/toktickit/issues/45#issuecomment-5714383904) | Sxr1n | Approved all six remaining decisions: staff assignment, login throttling, queue pagination, comment/note limits, attachment access, and the API error envelope. | Updated the specification, API contract status, and review record so all decision rows are approved. | Approved |
+| 2026-09-30 18:43 UTC | [PR #61](https://github.com/Davidice23/toktickit/pull/61) | Sxr1n | Confirmed the first-password navigation fix and the isolated, repeat-safe legacy-upgrade test; noted that the simple SQL splitter is safe for the three pinned migrations but would need revisiting for future procedural SQL. | Kept the current pinned migration scope explicit and treated the future SQL-parser suggestion as non-blocking technical debt. | Approved |
+| 2026-10-01 04:16 UTC | [PR #62](https://github.com/Davidice23/toktickit/pull/62) | Sxr1n | Confirmed that filtering the ARIA status locator removes strict-mode ambiguity without weakening the user-creation or password-nondisclosure assertions. | Merged the one-file stabilization only after all three PR CI jobs passed. | Approved |
 
 ## Verified implementation and release reviews
 
 GitHub's review records show an `APPROVED` review by Sxr1n on each linked PR
 below. This is human GitHub evidence, not an AI-generated approval. All listed
-PRs are merged; the branch target is `lab3-staging` except #59 and #60, which
-target `main`.
+PRs are merged; the branch target is `lab3-staging` except #59, #60, #61 and
+#62, which target `main`.
 
 | Slice | Approved PRs and review evidence | Follow-up or outcome |
 | --- | --- | --- |
@@ -50,10 +52,11 @@ target `main`.
 | Authentication and decision gate | [#42](https://github.com/Davidice23/toktickit/pull/42#pullrequestreview-5232703212), [#44](https://github.com/Davidice23/toktickit/pull/44#pullrequestreview-5232839379), [#46](https://github.com/Davidice23/toktickit/pull/46#pullrequestreview-5233551784), [#48](https://github.com/Davidice23/toktickit/pull/48#pullrequestreview-5235769420) | #44 stabilized CSRF and #48 recorded the six remaining approved decisions after the Issue #45 comment. |
 | Requester, Staff and Admin implementation | [#49](https://github.com/Davidice23/toktickit/pull/49#pullrequestreview-5236639386), [#50](https://github.com/Davidice23/toktickit/pull/50#pullrequestreview-5243442680), [#52](https://github.com/Davidice23/toktickit/pull/52#pullrequestreview-5243659611), [#53](https://github.com/Davidice23/toktickit/pull/53#pullrequestreview-5243767507), [#55](https://github.com/Davidice23/toktickit/pull/55#pullrequestreview-5243848136), [#56](https://github.com/Davidice23/toktickit/pull/56#pullrequestreview-5244406000) | Reviewed in separate API and UI slices; comments and responses remain on each PR timeline. |
 | Verification and release | [#58](https://github.com/Davidice23/toktickit/pull/58#pullrequestreview-5245223803), [#59](https://github.com/Davidice23/toktickit/pull/59#pullrequestreview-5245462778), [#60](https://github.com/Davidice23/toktickit/pull/60#pullrequestreview-5245589265) | #59 released to `main`; #60 documented the final-main CI run. |
+| Final remediation | [#61](https://github.com/Davidice23/toktickit/pull/61), [#62](https://github.com/Davidice23/toktickit/pull/62) | Sxr1n approved the migration/UI remediation and the narrow post-merge E2E locator stabilization. Both PRs were merged to `main`; run [36826322511](https://github.com/Davidice23/toktickit/actions/runs/36826322511) passed all three jobs on `9cad71b`. |
 
-The post-release remediation in the current work branch is **not** covered by
-these historical approvals. It needs its own fresh PR, passing CI, and peer
-review before its code can be described as reviewed on final `main`.
+The final post-release remediation is covered by fresh reviews on #61 and #62,
+not by historical approval alone. GitHub records both approvals and merges, and
+the resulting `main` commit passed Server, Client, and browser CI.
 
 ## Required completion fields
 
