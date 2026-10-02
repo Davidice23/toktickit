@@ -2,11 +2,13 @@
 
 > Contract status: Approved by Sxr1n; implementation and final verification may proceed.
 
-Historical status: PR #58 and the post-#59 final-main CI passed their server,
-client, and browser jobs on 2026-09-18. That browser suite had 7 tests. The
-52-row table below is the **contract test inventory**, not proof that every
-described assertion ran. A later remediation branch has stronger local tests;
-it still needs its own PR, review, and final-main CI rerun.
+Final status: PR #58 and the post-#59 final-main CI established the first release
+baseline. PR #61 then added stronger migration, seed, authorization, UI, and
+browser evidence; PR #62 stabilized the only flaky post-merge E2E locator. Both
+follow-up PRs were approved by Sxr1n and merged. Final `main` run 36826322511
+passed Server, Client, and browser jobs on commit `9cad71b`. The 52-row table
+below remains the **contract test inventory**, not a claim that every broad
+sentence is a separate automated assertion.
 
 ## 1. Test strategy
 
@@ -181,8 +183,8 @@ E2E:
     npx playwright test e2e/lab-03
 
 Focused commands may be used during TDD, but final evidence must include
-complete output from the final main branch. Sections 8–9 record the historical
-release. Any new remediation changes require a new final-main rerun.
+complete output from the final main branch. Sections 8–11 distinguish the
+historical release, remediation, and final verified `main` state.
 
 ## 7. Final verification checklist
 
@@ -191,8 +193,8 @@ release. Any new remediation changes require a new final-main rerun.
 - [x] New remediation client tests and production build pass locally.
 - [x] New E2E paths run against a real seeded API/database and capture fresh responsive images.
 - [x] Direct unauthorized API calls and Requester ownership are covered in API tests.
-- [ ] New remediation branch has a reviewed PR and green CI.
-- [ ] The new remediation commit is merged and rerun on final `main`.
+- [x] Remediation PR #61 and CI-stabilization PR #62 received genuine peer approval and green CI.
+- [x] Both follow-up PRs were merged; final `main` commit `9cad71b` passed run 36826322511.
 - [ ] Automated keyboard/focus/contrast audit proves every AC-23 detail; current coverage is partial and visual/manual inspection is still required.
 
 ## 8. PR #58 staging evidence
@@ -216,7 +218,7 @@ The evidence is on lab3-staging; final-main evidence is recorded below after PR 
 - Client build and tests: passed (production build and full client suite)
 - Lab 3 browser workflows: passed (Chromium, real API/database, 7 tests across 5 files)
 
-## 10. Post-release remediation: local verified evidence
+## 10. Post-release remediation evidence
 
 On 2026-09-24, the new `fix/lab3-final-readiness` branch was checked against
 **isolated localhost PostgreSQL schemas**, not the user's normal schema:
@@ -231,9 +233,24 @@ On 2026-09-24, the new `fix/lab3-final-readiness` branch was checked against
 | Browser suite after cross-role extension | `npm run test:lab3` in `e2e/`, local Chrome | 14 tests passed; includes fresh screenshots at 1440, 820, and 390 px. |
 | Cross-role operational journey | `npx playwright test lab-03/staff-ticket-flow.spec.ts` | 2 tests passed; one creates a unique Requester Ticket and verifies Staff claim, IT Priority, status, public/private messages, and Requester visibility. |
 
-The complete E2E suite passed locally after the code changes, but must run again in CI.
+The complete E2E suite passed locally after the code changes and then passed in
+PR #61 CI. The first post-merge run exposed one strict-mode locator ambiguity in
+the Administrator E2E test; PR #62 narrowed the locator to the success status
+without weakening the assertion.
 The real legacy-data migration test preserves existing `User`, `Ticket`, and
 `Attachment` IDs and foreign keys; the idempotent seed test runs twice and
-checks all fictional role/status/message fixtures. These tests are stronger
-than the previous TODO/limited migration checks, but they are **not** evidence
-of an already reviewed or merged PR.
+checks all fictional role/status/message fixtures.
+
+## 11. Final remediation and final-main evidence
+
+- Remediation PR: https://github.com/Davidice23/toktickit/pull/61
+- CI-stabilization PR: https://github.com/Davidice23/toktickit/pull/62
+- Reviewer: Sxr1n; both PRs have an `APPROVED` GitHub review.
+- Final merge commit: `9cad71b9e58aeeecf3d124d71158126f4fb6c292`
+- Final-main CI: https://github.com/Davidice23/toktickit/actions/runs/36826322511
+- Server: 30 tests in 10 files plus production build - passed.
+- Client: 24 tests in 12 files plus production build - passed.
+- Browser: 14 Playwright tests across 6 files against PostgreSQL and the real client/server - passed.
+
+The final run is triggered by the push to `main`, so it verifies the exact
+submitted branch state rather than only a feature branch or local checkout.
