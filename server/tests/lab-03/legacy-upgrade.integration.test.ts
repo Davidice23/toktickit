@@ -41,17 +41,30 @@ describe("Lab 2 to Lab 3 legacy-data migration", () => {
       await shadow.$executeRawUnsafe(`INSERT INTO "Attachment" ("id", "ticketId", "originalName", "storedName", "mimeType", "sizeBytes") VALUES (55, 54, 'legacy.txt', 'legacy-fixture-55.txt', 'text/plain', 16)`);
 
       await applyMigration(shadow, migrations[2]);
-      const beforeBackfill = await shadow.ticket.findUniqueOrThrow({ where: { id: 54 } });
-      expect(beforeBackfill.itPriority).toBeNull();
+      // This intentionally stops at the Lab 3 schema.  Do not query this
+      // historical schema through a generated client that may later select
+      // additive Lab 4 columns such as Ticket.workflowVersion.
+      const [beforeBackfill] = await shadow.$queryRawUnsafe<Array<{ itPriority: string | null }>>(
+        'SELECT "itPriority" FROM "Ticket" WHERE "id" = 54',
+      );
+      expect(beforeBackfill?.itPriority).toBeNull();
       const passwordHash = await hashPassword("local-migration-test-password");
       await backfillLab3(shadow, passwordHash);
       await backfillLab3(shadow, passwordHash);
 
-      const user = await shadow.requesterUser.findUniqueOrThrow({ where: { id: 53 } });
-      const ticket = await shadow.ticket.findUniqueOrThrow({ where: { id: 54 }, include: { attachments: true } });
+      const [user] = await shadow.$queryRawUnsafe<Array<{
+        id: number; email: string; role: string; mustChangePassword: boolean; passwordHash: string | null;
+      }>>('SELECT "id", "email", "role", "mustChangePassword", "passwordHash" FROM "User" WHERE "id" = 53');
+      const [ticket] = await shadow.$queryRawUnsafe<Array<{
+        id: number; requesterId: number; categoryId: number; relatedSystemId: number;
+        requestedPriority: string; itPriority: string | null;
+      }>>('SELECT "id", "requesterId", "categoryId", "relatedSystemId", "requestedPriority", "itPriority" FROM "Ticket" WHERE "id" = 54');
+      const attachments = await shadow.$queryRawUnsafe<Array<{ id: number; ticketId: number; storedName: string }>>(
+        'SELECT "id", "ticketId", "storedName" FROM "Attachment" WHERE "ticketId" = 54',
+      );
       expect(user).toMatchObject({ id: 53, email: "legacy@example.test", role: "REQUESTER", mustChangePassword: true, passwordHash });
       expect(ticket).toMatchObject({ id: 54, requesterId: 53, categoryId: 51, relatedSystemId: 52, requestedPriority: "HIGH", itPriority: "HIGH" });
-      expect(ticket.attachments).toEqual([expect.objectContaining({ id: 55, ticketId: 54, storedName: "legacy-fixture-55.txt" })]);
+      expect(attachments).toEqual([expect.objectContaining({ id: 55, ticketId: 54, storedName: "legacy-fixture-55.txt" })]);
     } finally {
       await shadow.$disconnect();
       await admin.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
