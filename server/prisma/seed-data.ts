@@ -62,6 +62,77 @@ export const LAB3_ATTACHMENT_FIXTURE = {
   body: "Synthetic Lab 3 diagnostic attachment. No personal or production information.\n",
 } as const;
 
+// Lab 4 fixtures are deliberately namespaced by their idempotency keys. They
+// augment the Lab 3 queue without rewriting a student's existing records.
+// The set provides zero-, one-, and multiple-Action Tickets plus every Action
+// status required by the dashboard and lifecycle test matrix.
+export const LAB4_ACTION_FIXTURES = [
+  {
+    key: "lab4-action-001",
+    ticketKey: "lab3-demo-002",
+    createdByEmail: OPERATIONAL_USERS[0].email,
+    assigneeEmail: OPERATIONAL_USERS[1].email,
+    performedByEmail: null,
+    status: "PLANNED",
+    description: "Inspect the startup sequence and collect the device diagnostics.",
+    result: null,
+    followUpRequired: false,
+    followUpNote: null,
+    attachmentNotes: "Use the existing hardware diagnostic attachment if the requester provides one.",
+    actionAt: null,
+    cancelledAt: null,
+    cancellationReason: null,
+  },
+  {
+    key: "lab4-action-002",
+    ticketKey: "lab3-demo-003",
+    createdByEmail: OPERATIONAL_USERS[0].email,
+    assigneeEmail: OPERATIONAL_USERS[0].email,
+    performedByEmail: null,
+    status: "IN_PROGRESS",
+    description: "Reproduce the course-file upload failure with a minimal PDF.",
+    result: null,
+    followUpRequired: true,
+    followUpNote: "Requester will retry the upload after the service-side fix is deployed.",
+    attachmentNotes: "Refer to the existing synthetic diagnostic text attachment.",
+    actionAt: null,
+    cancelledAt: null,
+    cancellationReason: null,
+  },
+  {
+    key: "lab4-action-003",
+    ticketKey: "lab3-demo-003",
+    createdByEmail: OPERATIONAL_USERS[1].email,
+    assigneeEmail: OPERATIONAL_USERS[1].email,
+    performedByEmail: OPERATIONAL_USERS[1].email,
+    status: "COMPLETED",
+    description: "Verify the configured upload-size limit in the test environment.",
+    result: "The configured limit accepts the representative PDF upload.",
+    followUpRequired: false,
+    followUpNote: null,
+    attachmentNotes: null,
+    actionAt: "2026-10-30T00:00:00.000Z",
+    cancelledAt: null,
+    cancellationReason: null,
+  },
+  {
+    key: "lab4-action-004",
+    ticketKey: "lab3-demo-004",
+    createdByEmail: OPERATIONAL_USERS[2].email,
+    assigneeEmail: OPERATIONAL_USERS[2].email,
+    performedByEmail: null,
+    status: "CANCELLED",
+    description: "Arrange an on-site VPN observation session.",
+    result: null,
+    followUpRequired: false,
+    followUpNote: null,
+    attachmentNotes: null,
+    actionAt: null,
+    cancelledAt: "2026-10-30T00:01:00.000Z",
+    cancellationReason: "The requester supplied enough timestamps for remote analysis instead.",
+  },
+] as const;
+
 export async function seedReferenceData(prisma: PrismaClient): Promise<void> {
   const initialPassword = process.env.LAB3_SEED_INITIAL_PASSWORD ?? "local-only-password";
   const passwordHash = await hashPassword(initialPassword);
@@ -172,4 +243,78 @@ export async function seedReferenceData(prisma: PrismaClient): Promise<void> {
       sizeBytes: Buffer.byteLength(LAB3_ATTACHMENT_FIXTURE.body),
     },
   });
+
+  for (const fixture of LAB4_ACTION_FIXTURES) {
+    const ticketId = requiredId(ticketIds.get(fixture.ticketKey), fixture.ticketKey);
+    const createdById = requiredId(userIds.get(fixture.createdByEmail), fixture.createdByEmail);
+    const action = await prisma.actionTaken.upsert({
+      where: {
+        ticketId_createdById_idempotencyKey: {
+          ticketId,
+          createdById,
+          idempotencyKey: fixture.key,
+        },
+      },
+      update: {},
+      create: {
+        ticketId,
+        createdById,
+        assigneeId: requiredId(userIds.get(fixture.assigneeEmail), fixture.assigneeEmail),
+        performedById: fixture.performedByEmail
+          ? requiredId(userIds.get(fixture.performedByEmail), fixture.performedByEmail)
+          : null,
+        status: fixture.status,
+        description: fixture.description,
+        result: fixture.result,
+        followUpRequired: fixture.followUpRequired,
+        followUpNote: fixture.followUpNote,
+        attachmentNotes: fixture.attachmentNotes,
+        actionAt: fixture.actionAt ? new Date(fixture.actionAt) : null,
+        cancelledAt: fixture.cancelledAt ? new Date(fixture.cancelledAt) : null,
+        cancellationReason: fixture.cancellationReason,
+        idempotencyKey: fixture.key,
+        requestFingerprint: `seed:${fixture.key}`,
+      },
+      select: { id: true },
+    });
+
+    const createdReason = `seed:${fixture.key}:created`;
+    const createdEvent = await prisma.actionTakenEvent.findFirst({
+      where: { actionId: action.id, kind: "CREATED", reason: createdReason },
+      select: { id: true },
+    });
+    if (!createdEvent) {
+      await prisma.actionTakenEvent.create({
+        data: {
+          actionId: action.id,
+          actorId: createdById,
+          kind: "CREATED",
+          toStatus: "PLANNED",
+          reason: createdReason,
+        },
+      });
+    }
+
+    if (fixture.status !== "PLANNED") {
+      const lifecycleReason = `seed:${fixture.key}:${fixture.status}`;
+      const lifecycleEvent = await prisma.actionTakenEvent.findFirst({
+        where: { actionId: action.id, kind: "STATUS_CHANGED", toStatus: fixture.status, reason: lifecycleReason },
+        select: { id: true },
+      });
+      if (!lifecycleEvent) {
+        await prisma.actionTakenEvent.create({
+          data: {
+            actionId: action.id,
+            actorId: fixture.performedByEmail
+              ? requiredId(userIds.get(fixture.performedByEmail), fixture.performedByEmail)
+              : createdById,
+            kind: "STATUS_CHANGED",
+            fromStatus: "PLANNED",
+            toStatus: fixture.status,
+            reason: lifecycleReason,
+          },
+        });
+      }
+    }
+  }
 }

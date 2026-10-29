@@ -22,34 +22,39 @@ model Category {
 }
 
 model RequesterUser {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  passwordHash String?
-  role      Role     @default(REQUESTER)
-  isActive  Boolean  @default(true)
-  mustChangePassword Boolean @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  tickets   Ticket[] @relation("RequesterTickets")
-  ownedTickets Ticket[] @relation("TicketOwner")
-  sessions  Session[]
-  comments  PublicComment[]
-  internalNotes InternalNote[]
+  id                   Int                   @id @default(autoincrement())
+  name                 String
+  email                String                @unique
+  passwordHash         String?
+  role                 Role                  @default(REQUESTER)
+  isActive             Boolean               @default(true)
+  mustChangePassword   Boolean               @default(true)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  tickets              Ticket[]              @relation("RequesterTickets")
+  ownedTickets         Ticket[]              @relation("TicketOwner")
+  sessions             Session[]
+  comments             PublicComment[]
+  internalNotes        InternalNote[]
+  assignedActions      ActionTaken[]         @relation("ActionAssignee")
+  performedActions     ActionTaken[]         @relation("ActionPerformer")
+  createdActions       ActionTaken[]         @relation("ActionCreator")
+  actionEvents         ActionTakenEvent[]    @relation("ActionEventActor")
+  ticketWorkflowEvents TicketWorkflowEvent[] @relation("TicketWorkflowActor")
 
   @@index([isActive, name])
   @@map("User")
 }
 
 model Session {
-  id            Int          @id @default(autoincrement())
-  tokenHash     String       @unique
+  id            Int           @id @default(autoincrement())
+  tokenHash     String        @unique
   userId        Int
   expiresAt     DateTime
   revokedAt     DateTime?
   csrfTokenHash String
-  createdAt     DateTime     @default(now())
-  lastSeenAt    DateTime     @default(now())
+  createdAt     DateTime      @default(now())
+  lastSeenAt    DateTime      @default(now())
   user          RequesterUser @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([userId, revokedAt, expiresAt])
@@ -67,30 +72,34 @@ model RelatedSystem {
 }
 
 model Ticket {
-  id                Int               @id @default(autoincrement())
-  ticketNumber      String?           @unique
-  submissionKey     String
-  submissionHash    String
-  requesterId       Int
-  categoryId        Int
-  relatedSystemId   Int
-  summary           String
-  description       String
-  requestedPriority RequestedPriority
-  currentStatus     TicketStatus      @default(NEW)
-  itPriority        ITPriority?
-  ownerId           Int?
-  requesterConfirmedResolved Boolean   @default(false)
+  id                           Int                   @id @default(autoincrement())
+  ticketNumber                 String?               @unique
+  submissionKey                String
+  submissionHash               String
+  requesterId                  Int
+  categoryId                   Int
+  relatedSystemId              Int
+  summary                      String
+  description                  String
+  requestedPriority            RequestedPriority
+  currentStatus                TicketStatus          @default(NEW)
+  itPriority                   ITPriority?
+  ownerId                      Int?
+  requesterConfirmedResolved   Boolean               @default(false)
   requesterConfirmedResolvedAt DateTime?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  requester         RequesterUser     @relation("RequesterTickets", fields: [requesterId], references: [id], onDelete: Restrict)
-  owner             RequesterUser?    @relation("TicketOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  category          Category          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  relatedSystem     RelatedSystem     @relation(fields: [relatedSystemId], references: [id], onDelete: Restrict)
-  attachments       Attachment[]
-  publicComments    PublicComment[]
-  internalNotes     InternalNote[]
+  workflowVersion              Int                   @default(1)
+  resolvedAt                   DateTime?
+  createdAt                    DateTime              @default(now())
+  updatedAt                    DateTime              @updatedAt
+  requester                    RequesterUser         @relation("RequesterTickets", fields: [requesterId], references: [id], onDelete: Restrict)
+  owner                        RequesterUser?        @relation("TicketOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  category                     Category              @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  relatedSystem                RelatedSystem         @relation(fields: [relatedSystemId], references: [id], onDelete: Restrict)
+  attachments                  Attachment[]
+  publicComments               PublicComment[]
+  internalNotes                InternalNote[]
+  actions                      ActionTaken[]
+  workflowEvents               TicketWorkflowEvent[]
 
   @@unique([requesterId, submissionKey])
   @@index([requesterId, updatedAt])
@@ -100,27 +109,97 @@ model Ticket {
   @@index([requesterId, requestedPriority])
   @@index([ownerId, currentStatus])
   @@index([currentStatus, itPriority, createdAt])
+  @@index([currentStatus, ownerId, updatedAt])
+  @@index([resolvedAt, requesterId])
+}
+
+model ActionTaken {
+  id                 Int                @id @default(autoincrement())
+  ticketId           Int
+  assigneeId         Int
+  createdById        Int
+  performedById      Int?
+  status             ActionStatus       @default(PLANNED)
+  description        String
+  result             String?
+  followUpRequired   Boolean            @default(false)
+  followUpNote       String?
+  attachmentNotes    String?
+  actionAt           DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?
+  idempotencyKey     String
+  requestFingerprint String
+  version            Int                @default(1)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  ticket             Ticket             @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  assignee           RequesterUser      @relation("ActionAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  performedBy        RequesterUser?     @relation("ActionPerformer", fields: [performedById], references: [id], onDelete: Restrict)
+  createdBy          RequesterUser      @relation("ActionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  events             ActionTakenEvent[]
+
+  @@unique([ticketId, createdById, idempotencyKey])
+  @@index([ticketId, status, id])
+  @@index([assigneeId, status, updatedAt])
+  @@index([performedById, actionAt])
+  @@index([ticketId, createdAt, id])
+}
+
+model ActionTakenEvent {
+  id         Int                  @id @default(autoincrement())
+  actionId   Int
+  actorId    Int
+  kind       ActionTakenEventKind
+  fromStatus ActionStatus?
+  toStatus   ActionStatus?
+  fieldName  String?
+  oldValue   Json?
+  newValue   Json?
+  reason     String?
+  createdAt  DateTime             @default(now())
+  action     ActionTaken          @relation(fields: [actionId], references: [id], onDelete: Restrict)
+  actor      RequesterUser        @relation("ActionEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([actionId, createdAt, id])
+  @@index([actorId, createdAt])
+}
+
+model TicketWorkflowEvent {
+  id             Int           @id @default(autoincrement())
+  ticketId       Int
+  actorId        Int
+  previousStatus TicketStatus?
+  currentStatus  TicketStatus
+  reason         String?
+  confirmation   Boolean?
+  createdAt      DateTime      @default(now())
+  ticket         Ticket        @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  actor          RequesterUser @relation("TicketWorkflowActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt, id])
+  @@index([actorId, createdAt])
 }
 
 model PublicComment {
-  id        Int          @id @default(autoincrement())
+  id        Int           @id @default(autoincrement())
   ticketId  Int
   authorId  Int
   body      String
-  createdAt DateTime     @default(now())
-  ticket    Ticket       @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  createdAt DateTime      @default(now())
+  ticket    Ticket        @relation(fields: [ticketId], references: [id], onDelete: Restrict)
   author    RequesterUser @relation(fields: [authorId], references: [id], onDelete: Restrict)
 
   @@index([ticketId, createdAt])
 }
 
 model InternalNote {
-  id        Int          @id @default(autoincrement())
+  id        Int           @id @default(autoincrement())
   ticketId  Int
   authorId  Int
   body      String
-  createdAt DateTime     @default(now())
-  ticket    Ticket       @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  createdAt DateTime      @default(now())
+  ticket    Ticket        @relation(fields: [ticketId], references: [id], onDelete: Restrict)
   author    RequesterUser @relation(fields: [authorId], references: [id], onDelete: Restrict)
 
   @@index([ticketId, createdAt])
@@ -170,4 +249,20 @@ enum ITPriority {
   MEDIUM
   HIGH
   URGENT
+}
+
+enum ActionStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ActionTakenEventKind {
+  CREATED
+  EDITED
+  ASSIGNED
+  STATUS_CHANGED
+  COMPLETED
+  CANCELLED
 }
