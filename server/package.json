@@ -12,7 +12,8 @@
     "prisma:seed": "tsx prisma/seed.ts",
     "lab3:upgrade": "tsx scripts/lab3/upgrade.ts",
     "test": "vitest run",
-    "test:lab3": "vitest run tests/lab-03"
+    "test:lab3": "vitest run tests/lab-03",
+    "test:lab4": "vitest run tests/lab-04"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

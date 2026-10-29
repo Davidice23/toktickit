@@ -143,7 +143,7 @@ git diff --check
 
 These commands are an inventory, not a Phase 1 execution record. `npm test` on server/client already discovers their existing Lab 1-3 paths according to current config; a separate Lab 1/2 script must not be invented simply to inflate test counts.
 
-### 5.2 Commands to add in Issue #65, then use only after they exist
+### 5.2 Lab 4 commands provided by Issue #65
 
 ```powershell
 npm --prefix server run test:lab4
@@ -152,9 +152,33 @@ npm --prefix e2e run test:lab4 -- --list
 npm --prefix e2e run test:lab4
 ```
 
-Before E2E, the harness must prepare the isolated DB via the approved migration/seed path, run the API with explicit safe test environment, wait for `/api/health`, run the client, and collect Playwright trace/screenshots/report. Current Playwright config starts only the client; #65 must design the API/database lifecycle explicitly.
+`test:lab4` is a focused selector, not a replacement for `npm test`: the latter remains the full regression command for every suite discovered by its package. The server and client include their Lab 1–4 tests; the E2E package currently owns Lab 3 regression plus Lab 4 tests. The E2E configuration discovers only `lab-03/**/*.spec.ts` and `lab-04/**/*.spec.ts`; shared helpers use no `.spec.ts` suffix and are not counted as tests.
 
-### 5.3 Exact-main release evidence
+Issue #65 supplies only executable foundation smoke coverage for behavior that exists before Lab 4 feature implementation:
+
+- Server: health response and anonymous rejection on an existing protected Ticket route. These requests have no session cookie and do not open or mutate Prisma.
+- Client: signed-out rendering after the current-session probe is denied.
+- Browser: sign-in page plus protected-API rejection, then a seeded requester sign-in, navigation to My Tickets, and sign-out.
+
+The Actions Taken, workflow, dashboard, migration, concurrency, and accessibility feature tests listed above remain `PLANNED` until their owning implementation issues add real coverage. No skipped/todo/placeholder assertion is a Lab 4 pass claim.
+
+Before any E2E run, the harness prepares an isolated CI PostgreSQL service through the current migration/seed path, starts the API with explicit test environment variables, waits for `/api/health`, runs the client via Playwright, and collects trace/screenshots/report. The dedicated Lab 4 workflow is limited to `pull_request` and `push` on `lab4-staging` and `main`, uses only `contents: read`, and does not use `pull_request_target`.
+
+### 5.3 Issue #65 local verification record (2026-10-29, before commit)
+
+| Command | Result | Evidence / limitation |
+| --- | --- | --- |
+| `npm --prefix server run build` | PASS | TypeScript build completed. |
+| `npm --prefix server run test:lab4` | PASS | 1 file, 2 executable smoke tests passed after running outside the desktop sandbox because Supertest needs a temporary loopback port. |
+| `npm --prefix client run build` | PASS | TypeScript and Vite production build completed. |
+| `npm --prefix client run test:lab4` | PASS | 1 file, 1 executable smoke test passed. |
+| `npm --prefix client test` | PASS with existing warning | 13 files / 25 tests passed; the prior Lab 1 App test emitted React's `act(...)` warning, which does not fail the suite and is not changed in #65. |
+| `npm --prefix e2e run test:lab4 -- --list` | PASS | Playwright discovered 1 file / 2 executable Lab 4 browser tests. |
+| Full server regression and browser execution | NOT RUN locally | No explicit disposable `DATABASE_URL` or test environment file was configured locally. The workflow creates a temporary GitHub Actions PostgreSQL service and is the required execution environment for these database-backed commands. |
+
+This record is pre-commit local evidence, not a CI result. The PR must record the head SHA and actual workflow URL/conclusions before the foundation gate is considered complete.
+
+### 5.4 Exact-main release evidence
 
 After release, record the resolved `main` SHA, CI event URL, `head_sha`, all required job conclusions, command output totals, and whether any test was skipped/not run. A green PR merge-ref or staging run is not a substitute for the exact final-main run.
 
