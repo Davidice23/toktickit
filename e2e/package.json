@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
-    "test:lab3": "playwright test lab-03"
+    "test:lab3": "playwright test lab-03",
+    "test:lab4": "playwright test lab-04"
   },
   "devDependencies": {
     "@playwright/test": "^1.51.0"

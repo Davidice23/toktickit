@@ -1,0 +1,161 @@
+name: Lab 4 CI
+
+on:
+  pull_request:
+    branches: [main, lab4-staging]
+  push:
+    branches: [main, lab4-staging]
+
+permissions:
+  contents: read
+
+jobs:
+  lab4-server:
+    name: Lab 4 server regression and smoke
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: toktickit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d toktickit_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: server
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/toktickit_test?schema=public
+      NODE_ENV: test
+      LAB3_SEED_INITIAL_PASSWORD: local-only-password
+      CSRF_SECRET: local-only-csrf-secret
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Install server dependencies
+        run: npm ci
+      - name: Apply current migrations and synthetic seed fixtures
+        run: npm run lab3:upgrade
+      - name: Build server
+        run: npm run build
+      - name: Run all server regression tests
+        run: npm test
+      - name: Run Lab 4 server smoke suite explicitly
+        run: npm run test:lab4
+
+  lab4-client:
+    name: Lab 4 client regression and smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install client dependencies
+        run: npm ci
+      - name: Build client
+        run: npm run build
+      - name: Run all client regression tests
+        run: npm test
+      - name: Run Lab 4 client smoke suite explicitly
+        run: npm run test:lab4
+
+  lab4-e2e:
+    name: Lab 4 browser regression and smoke
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: toktickit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d toktickit_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/toktickit_test?schema=public
+      NODE_ENV: test
+      LAB3_SEED_INITIAL_PASSWORD: local-only-password
+      LAB3_E2E_PASSWORD: Lab3-E2E-password!2026
+      CSRF_SECRET: local-only-csrf-secret
+      CLIENT_ORIGIN: http://127.0.0.1:5173
+      VITE_API_URL: http://127.0.0.1:3000
+      E2E_BASE_URL: http://127.0.0.1:5173
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Apply current migrations and synthetic seed fixtures
+        working-directory: server
+        run: npm run lab3:upgrade
+      - name: Build server
+        working-directory: server
+        run: npm run build
+      - name: Start API server
+        working-directory: server
+        run: nohup npm start > /tmp/toktickit-server.log 2>&1 &
+      - name: Wait for API server
+        run: |
+          for attempt in {1..30}; do
+            curl --fail --silent http://127.0.0.1:3000/api/health && exit 0
+            sleep 1
+          done
+          cat /tmp/toktickit-server.log
+          exit 1
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm ci
+      - name: Install client dependencies for web server
+        working-directory: client
+        run: npm ci
+      - name: Install Chromium
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+      - name: Run all browser regression tests
+        working-directory: e2e
+        run: npm test
+      - name: Run Lab 4 browser smoke suite explicitly
+        working-directory: e2e
+        run: npm run test:lab4
+      - name: Upload browser screenshots and Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab4-browser-evidence
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+            /tmp/toktickit-server.log
+          if-no-files-found: warn
