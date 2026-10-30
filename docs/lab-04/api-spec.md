@@ -2,6 +2,8 @@
 
 > **Status: Approved Contract baseline (PR #75); endpoint implementation is tracked by Issues #66-#72.** Existing Lab 1-3 routes remain available unless this document explicitly extends their request/response requirements. All examples omit secrets and are illustrative rather than captured results.
 
+> **Proposed #66 amendment — learner approved; peer review and disposable-database verification pending.** The Action pagination and idempotency-receipt details below are not yet an integrated or peer-approved Contract revision.
+
 ## 1. Common conventions
 
 ### 1.1 Authentication, authorization, and response envelopes
@@ -17,7 +19,7 @@
 
 All Lab 4 Action mutations and Ticket assignment/priority/status mutations include `expectedTicketVersion` in the JSON body. Action edit/status mutations additionally include `expectedActionVersion`. The server validates versions and all related gate predicates inside the same parent-Ticket transaction/coordination boundary.
 
-`POST` Action create additionally requires a non-empty `Idempotency-Key` HTTP header. The key is scoped to authenticated actor and Ticket. A replay with the same normalized request returns the original successful representation; the same key with a different normalized request returns `409 IDEMPOTENCY_KEY_REUSED`.
+`POST` Action create additionally requires a non-empty `Idempotency-Key` HTTP header. The key is scoped to authenticated actor and Ticket. A replay with the same normalized Action fields returns the original successful JSON representation, including its original Ticket version, with status `200` instead of the initial `201`; the same key with different normalized Action fields returns `409 IDEMPOTENCY_KEY_REUSED`. `expectedTicketVersion` is a concurrency precondition and is excluded from the fingerprint, but must still be a valid positive integer on retry. A replayed version is historical: reload current Ticket/Action state before further mutations. The immutable response receipt is retained with the Action; this Lab has no expiry or hard-delete operation. Historical Actions without a receipt return `409 IDEMPOTENCY_RECEIPT_UNAVAILABLE` on matching-key retry: check the existing Action rather than inventing an old response or issuing a new key blindly.
 
 If a write is stale, the server returns `409 STALE_VERSION`; it never silently replaces newer values. The UI then reloads the Ticket and lets the user reconcile the draft.
 
@@ -62,7 +64,7 @@ TicketStatus = NEW | OPEN | IN_PROGRESS | WAITING_FOR_REQUESTER |
 
 `GET /api/tickets/:ticketId/actions`
 
-Query: `page` defaults to `1`; `pageSize` defaults to `20` and accepts `10`, `20`, or `50`. Pages are limited to `1-100`. Items are ordered `createdAt ASC, id ASC`.
+Query: `page` defaults to `1`; `pageSize` defaults to `20` and accepts `10`, `20`, or `50`. Action pages are not limited to 100: the maximum page for a chosen page size is `floor(2147483647 / pageSize) + 1`, ensuring the zero-based Prisma offset remains a signed 32-bit integer and covers the positive generated Action-ID space. Items are ordered `createdAt ASC, id ASC`. Page results are not a snapshot across multiple requests while records are being created.
 
 | Caller | Result |
 | --- | --- |
@@ -179,7 +181,7 @@ Status response example:
 
 `GET /api/staff/tickets/:ticketId/history`
 
-IT Staff/Admin receive ordered safe workflow and Action lifecycle events. Uses the same `page`/`pageSize` bounds as the Action list. Events are ordered by `createdAt ASC`, then source (`ACTION` before `TICKET`), then numeric event ID ascending. The response does not expose Internal Note body, secrets, or hidden operational details. The requester Ticket detail receives only the Action list; a dedicated requester history endpoint is out of scope unless separately approved.
+IT Staff/Admin receive ordered safe workflow and Action lifecycle events. History accepts `page` 1–100 and the same page sizes as the Action list; this separate temporary history limit bounds the current merge-in-memory implementation and must be revisited before claiming complete unlimited audit-history access. Events are ordered by `createdAt ASC`, then source (`ACTION` before `TICKET`), then numeric event ID ascending. The response does not expose Internal Note body, secrets, or hidden operational details. The requester Ticket detail receives only the Action list; a dedicated requester history endpoint is out of scope unless separately approved.
 
 ## 6. Dashboard endpoints
 

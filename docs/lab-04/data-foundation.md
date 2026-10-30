@@ -50,6 +50,23 @@ drops only the schemas it created. It never targets a normal user schema.
 
 ## Fixture policy
 
+### Issue #66 proposed idempotency receipt migration
+
+`20261030020000_lab4_action_create_receipts` adds a separate
+`ActionCreateReceipt` table keyed by Action ID with a `RESTRICT` foreign key.
+The service writes the initial safe JSON response in the same transaction as
+the Action, creation event, and parent version increment. This avoids changing
+the Action's own `updatedAt` just to persist a receipt. Existing Action rows
+are neither modified nor assigned a fabricated historical response. A matching
+retry without a receipt is rejected with `409 IDEMPOTENCY_RECEIPT_UNAVAILABLE`.
+Receipts have no automatic expiry or hard-delete path in this Lab. Backup and
+restore must include the new table alongside Actions and events.
+
+This migration is an unmerged proposal: schema generation/validation and
+TypeScript checks are not evidence of successful deploy, data preservation, or
+recovery. The updated disposable-schema migration tests must run in CI and the
+learner/peer must review the historical-retry policy before merge.
+
 `LAB4_ACTION_FIXTURES` is synthetic and namespace-scoped by each Action's
 `idempotencyKey`. It adds planned, in-progress, completed, and cancelled
 Actions; zero-, one-, and multiple-Action Tickets; a follow-up case; distinct

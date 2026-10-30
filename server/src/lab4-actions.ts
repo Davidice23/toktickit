@@ -126,14 +126,18 @@ function requireExpectedTicketVersion(body: Record<string, unknown>): number {
   return version;
 }
 
-function parsePagination(req: Request) {
+function parsePagination(req: Request, maximumPage?: number) {
   const unknown = Object.keys(req.query).filter((key) => key !== "page" && key !== "pageSize");
   if (unknown.length) throw validation({ query: "Only page and pageSize query parameters are supported" });
   const page = req.query.page === undefined ? 1 : positiveInteger(req.query.page);
   const pageSize = req.query.pageSize === undefined ? 20 : positiveInteger(req.query.pageSize);
   const fields: Record<string, string> = {};
-  if (!page || page > 100) fields.page = "Page must be an integer from 1 to 100";
+  if (!page) fields.page = "Page must be a positive integer";
   if (!pageSize || ![10, 20, 50].includes(pageSize)) fields.pageSize = "Page size must be 10, 20, or 50";
+  // Prisma skip uses a signed 32-bit integer; IDs are positive signed 32-bit
+  // generated IDs, so this still covers the full possible Action ID space.
+  if (page && pageSize && page > Math.floor(2147483647 / pageSize) + 1) fields.page = "Page exceeds the supported offset range";
+  if (page && maximumPage && page > maximumPage) fields.page = `Page must be an integer from 1 to ${maximumPage}`;
   if (Object.keys(fields).length) throw validation(fields);
   return { page: page as number, pageSize: pageSize as number };
 }
@@ -231,7 +235,7 @@ router.get("/api/staff/tickets/:ticketId/history", requireSession, requireNormal
   const ticketId = positiveInteger(req.params.ticketId);
   if (!ticketId) return res.status(404).json(errorBody("TICKET_NOT_FOUND", "Ticket not found"));
   try {
-    const { page, pageSize } = parsePagination(req);
+    const { page, pageSize } = parsePagination(req, 100);
     const prisma = getPrisma();
     const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
     if (!ticket) return res.status(404).json(errorBody("TICKET_NOT_FOUND", "Ticket not found"));
@@ -299,7 +303,8 @@ router.post("/api/staff/tickets/:ticketId/actions", requireSession, requireNorma
   const auth = (req as AuthenticatedRequest).auth;
   const body = bodyRecord(req.body);
   if (!ticketId) return res.status(404).json(errorBody("TICKET_NOT_FOUND", "Ticket not found"));
-  if (!auth || !body) return validation({ body: "A JSON object is required" });
+  if (!auth) return res.status(401).json(errorBody("UNAUTHENTICATED", "Authentication is required"));
+  if (!body) return sendFailure(res, validation({ body: "A JSON object is required" }), "create");
 
   try {
     rejectUnknownFields(body, ["expectedTicketVersion", "assigneeId", "description", "followUpRequired", "followUpNote", "attachmentNotes"]);
@@ -313,9 +318,11 @@ router.post("/api/staff/tickets/:ticketId/actions", requireSession, requireNorma
     if (!assigneeId) fields.assigneeId = "An active operational assignee is required";
     if (!description || description.length > 2000) fields.description = "Description must contain 1-2,000 characters";
     if (typeof followUpRequired !== "boolean") fields.followUpRequired = "Follow-up required must be true or false";
-    if (followUpRequired === true && !followUpNote) fields.followUpNote = "A note is required when follow-up is selected";
+    if (body.followUpNote !== undefined && body.followUpNote !== null && typeof body.followUpNote !== "string") fields.followUpNote = "Follow-up note must be text or null";
+    else if (followUpRequired === true && !followUpNote) fields.followUpNote = "A note is required when follow-up is selected";
     if (followUpNote && followUpNote.length > 2000) fields.followUpNote = "Follow-up note must contain at most 2,000 characters";
-    if (attachmentNotes !== null && (typeof body.attachmentNotes !== "string" || attachmentNotes.length > 2000)) fields.attachmentNotes = "Attachment notes must contain at most 2,000 characters";
+    if (body.attachmentNotes !== undefined && body.attachmentNotes !== null && typeof body.attachmentNotes !== "string") fields.attachmentNotes = "Attachment notes must be text or null";
+    else if (attachmentNotes !== null && attachmentNotes.length > 2000) fields.attachmentNotes = "Attachment notes must contain at most 2,000 characters";
     const idempotencyKey = trimmed(req.header("Idempotency-Key"));
     if (!idempotencyKey || idempotencyKey.length > 200) fields.idempotencyKey = "Idempotency-Key must contain 1-200 characters";
     if (Object.keys(fields).length) throw validation(fields);
@@ -334,11 +341,12 @@ router.post("/api/staff/tickets/:ticketId/actions", requireSession, requireNorma
       await lockOperationalActor(tx, auth.user.id);
       const prior = await tx.actionTaken.findUnique({
         where: { ticketId_createdById_idempotencyKey: { ticketId, createdById: auth.user.id, idempotencyKey: idempotencyKey as string } },
-        select: { id: true, requestFingerprint: true },
+        select: { id: true, requestFingerprint: true, createReceipt: { select: { response: true } } },
       });
       if (prior) {
         if (prior.requestFingerprint !== requestFingerprint) throw new ApiFailure(409, "IDEMPOTENCY_KEY_REUSED", "This Idempotency-Key was already used for a different Action request");
-        return { action: await safeAction(tx, prior.id), ticketVersion: ticket.workflowVersion, replay: true };
+        if (!prior.createReceipt) throw new ApiFailure(409, "IDEMPOTENCY_RECEIPT_UNAVAILABLE", "The original response for this historical Action is unavailable; do not retry with a new key without checking the existing Action");
+        return { response: prior.createReceipt.response, replay: true };
       }
       ensureWritableTicket(ticket);
       ensureTicketVersion(ticket.workflowVersion, expectedTicketVersion);
@@ -361,9 +369,13 @@ router.post("/api/staff/tickets/:ticketId/actions", requireSession, requireNorma
         select: { id: true },
       });
       const ticketVersion = await bumpTicketVersion(tx, ticketId, ticket.workflowVersion);
-      return { action: await safeAction(tx, action.id), ticketVersion, replay: false };
+      // Persist the exact public JSON response in the same transaction. Dates
+      // are converted to RFC 3339 strings just as Express would serialize them.
+      const response = JSON.parse(JSON.stringify({ data: await safeAction(tx, action.id), meta: versionMeta(ticketVersion) })) as Prisma.InputJsonValue;
+      await tx.actionCreateReceipt.create({ data: { actionId: action.id, response } });
+      return { response, replay: false };
     });
-    return res.status(result.replay ? 200 : 201).json({ data: result.action, meta: versionMeta(result.ticketVersion) });
+    return res.status(result.replay ? 200 : 201).json(result.response);
   } catch (error) {
     return sendFailure(res, error, "create");
   }
@@ -375,7 +387,8 @@ router.patch("/api/staff/tickets/:ticketId/actions/:actionId", requireSession, r
   const auth = (req as AuthenticatedRequest).auth;
   const body = bodyRecord(req.body);
   if (!ticketId || !actionId) return res.status(404).json(errorBody("ACTION_NOT_FOUND", "Action not found"));
-  if (!auth || !body) return validation({ body: "A JSON object is required" });
+  if (!auth) return res.status(401).json(errorBody("UNAUTHENTICATED", "Authentication is required"));
+  if (!body) return sendFailure(res, validation({ body: "A JSON object is required" }), "edit");
 
   try {
     rejectUnknownFields(body, ["expectedTicketVersion", "expectedActionVersion", "assigneeId", "description", "followUpRequired", "followUpNote", "attachmentNotes"]);
@@ -403,12 +416,14 @@ router.patch("/api/staff/tickets/:ticketId/actions/:actionId", requireSession, r
     }
     if (Object.prototype.hasOwnProperty.call(body, "followUpNote")) {
       const note = body.followUpNote === null ? null : trimmed(body.followUpNote);
-      if (note !== null && (!note || note.length > 2000)) fields.followUpNote = "Follow-up note must contain 1-2,000 characters or be null";
+      if (body.followUpNote !== null && typeof body.followUpNote !== "string") fields.followUpNote = "Follow-up note must be text or null";
+      else if (note !== null && (!note || note.length > 2000)) fields.followUpNote = "Follow-up note must contain 1-2,000 characters or be null";
       else patch.followUpNote = note;
     }
     if (Object.prototype.hasOwnProperty.call(body, "attachmentNotes")) {
       const notes = body.attachmentNotes === null ? null : trimmed(body.attachmentNotes);
-      if (notes !== null && notes.length > 2000) fields.attachmentNotes = "Attachment notes must contain at most 2,000 characters";
+      if (body.attachmentNotes !== null && typeof body.attachmentNotes !== "string") fields.attachmentNotes = "Attachment notes must be text or null";
+      else if (notes !== null && notes.length > 2000) fields.attachmentNotes = "Attachment notes must contain at most 2,000 characters";
       else patch.attachmentNotes = notes || null;
     }
     if (Object.keys(fields).length) throw validation(fields);
@@ -473,7 +488,8 @@ router.patch("/api/staff/tickets/:ticketId/actions/:actionId/status", requireSes
   const auth = (req as AuthenticatedRequest).auth;
   const body = bodyRecord(req.body);
   if (!ticketId || !actionId) return res.status(404).json(errorBody("ACTION_NOT_FOUND", "Action not found"));
-  if (!auth || !body) return validation({ body: "A JSON object is required" });
+  if (!auth) return res.status(401).json(errorBody("UNAUTHENTICATED", "Authentication is required"));
+  if (!body) return sendFailure(res, validation({ body: "A JSON object is required" }), "status transition");
 
   try {
     rejectUnknownFields(body, ["expectedTicketVersion", "expectedActionVersion", "status", "result", "followUpRequired", "followUpNote", "cancellationReason"]);

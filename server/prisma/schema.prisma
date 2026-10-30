@@ -138,12 +138,21 @@ model ActionTaken {
   performedBy        RequesterUser?     @relation("ActionPerformer", fields: [performedById], references: [id], onDelete: Restrict)
   createdBy          RequesterUser      @relation("ActionCreator", fields: [createdById], references: [id], onDelete: Restrict)
   events             ActionTakenEvent[]
+  createReceipt      ActionCreateReceipt?
 
   @@unique([ticketId, createdById, idempotencyKey])
   @@index([ticketId, status, id])
   @@index([assigneeId, status, updatedAt])
   @@index([performedById, actionAt])
   @@index([ticketId, createdAt, id])
+}
+
+// The original create response is kept separately so retries do not rewrite
+// Action.updatedAt or reconstruct an earlier snapshot from mutable fields.
+model ActionCreateReceipt {
+  actionId Int         @id
+  response Json
+  action   ActionTaken @relation(fields: [actionId], references: [id], onDelete: Restrict)
 }
 
 model ActionTakenEvent {

@@ -77,6 +77,7 @@ async function cleanupFixtureTickets() {
     const actions = await prisma.actionTaken.findMany({ where: { ticketId }, select: { id: true } });
     const actionIds = actions.map((action) => action.id);
     if (actionIds.length) {
+      await prisma.actionCreateReceipt.deleteMany({ where: { actionId: { in: actionIds } } });
       await prisma.actionTakenEvent.deleteMany({ where: { actionId: { in: actionIds } } });
       await prisma.actionTaken.deleteMany({ where: { id: { in: actionIds } } });
     }
@@ -195,6 +196,16 @@ describe.sequential("Lab 4 Actions Taken API and authorization", () => {
     const requesterHistory = await requesterA.agent.get(`/api/staff/tickets/${ticketId}/history`);
     expect(requesterHistory.status).toBe(403);
 
+    const edit = await staff.agent.patch(`/api/staff/tickets/${ticketId}/actions/${created.body.data.id}`)
+      .set("X-CSRF-Token", staff.csrfToken)
+      .send({ expectedTicketVersion: 2, expectedActionVersion: 1, description: "Edited after creation" });
+    expect(edit.status).toBe(200);
+    const retryAfterEdit = await createAction(ticketId, key, payload);
+    expect(retryAfterEdit.status).toBe(200);
+    expect(retryAfterEdit.body).toEqual(created.body);
+    expect(await prisma.actionTaken.count({ where: { ticketId } })).toBe(1);
+    expect(await prisma.actionTakenEvent.count({ where: { actionId: created.body.data.id } })).toBe(2);
+
     const adminTicketId = await makeTicket();
     const adminCreated = await admin.agent.post(`/api/staff/tickets/${adminTicketId}/actions`)
       .set("X-CSRF-Token", admin.csrfToken)
@@ -203,6 +214,35 @@ describe.sequential("Lab 4 Actions Taken API and authorization", () => {
     expect(adminCreated.status).toBe(201);
     const adminAction = await prisma.actionTaken.findUniqueOrThrow({ where: { id: adminCreated.body.data.id }, select: { createdById: true } });
     expect(adminAction.createdById).toBe(admin.userId);
+  });
+
+  it("lets an owner and Staff read Actions beyond the first 100 pages", async () => {
+    const ticketId = await makeTicket();
+    await prisma.actionTaken.createMany({ data: Array.from({ length: 1001 }, (_, index) => ({
+      ticketId, assigneeId: staff.userId, createdById: staff.userId,
+      description: `Pagination fixture ${index}`, idempotencyKey: randomUUID(), requestFingerprint: randomUUID(),
+    })) });
+    const ownerPage = await requesterA.agent.get(`/api/tickets/${ticketId}/actions?page=101&pageSize=10`);
+    expect(ownerPage.status).toBe(200);
+    expect(ownerPage.body.data).toHaveLength(1);
+    expect(ownerPage.body.meta).toMatchObject({ page: 101, totalItems: 1001, totalPages: 101, hasNextPage: false });
+    const staffPage = await staff.agent.get(`/api/staff/tickets/${ticketId}/actions?page=101&pageSize=10`);
+    expect(staffPage.status).toBe(200);
+    expect(staffPage.body.data[0].id).toBe(ownerPage.body.data[0].id);
+    const otherRequester = await requesterB.agent.get(`/api/tickets/${ticketId}/actions?page=101&pageSize=10`);
+    expect(otherRequester.status).toBe(404);
+  });
+
+  it("fails closed if a matching historical Action has no original retry receipt", async () => {
+    const ticketId = await makeTicket();
+    const key = randomUUID();
+    const created = await createAction(ticketId, key);
+    expect(created.status).toBe(201);
+    await prisma.actionCreateReceipt.delete({ where: { actionId: created.body.data.id } });
+    const replay = await createAction(ticketId, key);
+    expect(replay.status).toBe(409);
+    expect(replay.body.error.code).toBe("IDEMPOTENCY_RECEIPT_UNAVAILABLE");
+    expect(await prisma.actionTaken.count({ where: { ticketId } })).toBe(1);
   });
 
   it("rejects inactive assignees, invalid content, and client-controlled audit fields without writes", async () => {

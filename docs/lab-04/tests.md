@@ -45,12 +45,13 @@ Tests run only against a disposable/local test database or isolated schema expli
 | API-02 | API / AC-02 | Inactive/non-staff assignee is rejected | Field error; no Action/event/version mutation | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — build/type-check pass; waiting PR CI |
 | API-03 | API / AC-03 | Ticket Owner and Action assignee may differ | Valid creation/update succeeds with both links correct | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — build/type-check pass; waiting PR CI |
 | API-04 | API / AC-05 | Blank/too-long description, required follow-up note, missing Result, and missing cancel reason | Deterministic validation fields; persisted state unchanged | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — build/type-check pass; waiting PR CI |
-| API-05 | API / AC-06 | Requester A reads safe Actions for own Ticket; Requester B cannot read/mutate; requester cannot call staff route | Safe list/404/403 according to Contract; no mutation | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — build/type-check pass; waiting PR CI |
-| API-06 | API / AC-07 | Same idempotency key + normalized payload is safe; changed payload conflicts | One record/event only; replay is stable; changed replay is `409` | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — build/type-check pass; waiting PR CI |
+| API-05 | API / AC-06 | Requester A reads safe Actions for own Ticket, including beyond page 100; Requester B cannot read/mutate | Safe list/404/403 according to Contract; no mutation | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — disposable-DB run pending; pagination mock test passed locally |
+| API-06 | API / AC-07 | Same key/payload after an edit returns original receipt; changed payload or unavailable legacy receipt conflicts | Original JSON response, one record; deterministic `409` for mismatch/missing receipt | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — mocked replay checks passed locally; transaction and database execution pending |
 | API-07 | API / AC-04,06 | Nested action ID from another Ticket, spoofed actor/version/timestamp fields, terminal edit, and unknown enum | Safe 404/400/409; no cross-ticket mutation | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — build/type-check pass; waiting PR CI |
 | API-08 | API / AC-08 | Lifecycle edits/transitions append Action events in deterministic order | Current snapshot and immutable history match expected actor/status | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — build/type-check pass; waiting PR CI |
-| API-09 | API / AC-04,11 | Concurrent Action creates and stale Action/Ticket versions | One accepted create; the stale request returns `409`; one Action/event persists | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — build/type-check pass; waiting PR CI |
+| API-09 | API / AC-04,11 | Concurrent Action creates and stale Action/Ticket versions | One accepted create; the stale request returns `409`; one Action/event persists | `server/tests/lab-04/actions-taken.api.test.ts` | PARTIAL — `Promise.all` does not establish controlled transaction overlap; database execution remains pending |
 | API-10 | API / AC-08 | Staff history combines Action and Ticket events with deterministic ordering and role filtering | Staff/Admin can read; Requester receives `403`; no Internal Note content | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — build/type-check pass; waiting PR CI |
+| API-11 | Unit / AC-05–07 | Non-object/incorrect note types, pagination bounds, replay and missing receipt | Safe errors and replay logic without database access | `server/tests/lab-04/actions-validation.unit.test.ts` | PASS locally — 11 mocked-auth/database-isolated tests; PR CI pending |
 
 ### 3.3 Ticket workflow and concurrency
 
@@ -193,6 +194,12 @@ PR [#77](https://github.com/Davidice23/toktickit/pull/77) was merged at `be1b800
 | `npm run test:lab4` / full server regression | NOT RUN locally | The Action API tests require a disposable `toktickit_test` PostgreSQL database. No local database was selected or touched; run them in the PR workflow's disposable PostgreSQL service and record the exact PR head/run before calling them passed. |
 
 These local checks are not integration-test evidence. The feature PR remains pending until all PR-head CI jobs finish and any failures are resolved.
+
+#### Follow-up local validation check (2026-10-30, pre-commit)
+
+`npx vitest run tests/lab-04/actions-validation.unit.test.ts`: **7 passed** after the validation fix, using mocked authorization and a database stub that fails if accessed. Before the fix, the same seven cases failed: three timed out on non-object JSON bodies and four returned `500` after reaching the database stub instead of `400`. An initial sandbox run failed with loopback `EACCES`; the red/green runs used the approved external sandbox environment for Supertest's temporary loopback ports. The server build and strict TypeScript checks of both Action test files passed after the change. No real database was used. This does not replace API integration, authorization, or concurrency tests.
+
+After the learner approved the pagination/replay direction, four mocked tests were added; the same command reported **11 passed**. `prisma generate`, `prisma validate` with a non-connected placeholder URL, server build, and strict TypeScript checks of the Action and migration test files passed locally. The new additive receipt migration, old-record preservation, page-101 fixture, real transaction/replay, recovery, and regression suites are **NOT RUN** on PostgreSQL. Docker's local engine was unavailable; no database was started, migrated, or modified. The Action history endpoint still has a separate 100-page cap and controlled-overlap concurrency proof is outstanding.
 
 ### 5.6 Exact-main release evidence
 
