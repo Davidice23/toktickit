@@ -4,6 +4,7 @@ import {
   LAB3_MESSAGE_FIXTURES,
   LAB3_ATTACHMENT_FIXTURE,
   LAB3_TICKET_FIXTURES,
+  LAB4_ACTION_FIXTURES,
   OPERATIONAL_USERS,
   REQUESTERS,
   seedReferenceData,
@@ -28,7 +29,7 @@ describe.sequential("Lab 3 local seed fixtures", () => {
     await seedReferenceData(prisma);
     const second = await prisma.ticket.findMany({
       where: { submissionKey: { in: LAB3_TICKET_FIXTURES.map((fixture) => fixture.key) } },
-      include: { publicComments: true, internalNotes: true, attachments: true },
+      include: { publicComments: true, internalNotes: true, attachments: true, actions: { include: { events: true } } },
       orderBy: { submissionKey: "asc" },
     });
     expect(second.map(({ id, submissionKey }) => ({ id, submissionKey }))).toEqual(first);
@@ -41,6 +42,13 @@ describe.sequential("Lab 3 local seed fixtures", () => {
       .toBe(LAB3_MESSAGE_FIXTURES.length);
     expect(second.flatMap((ticket) => ticket.attachments.map((attachment) => attachment.storedName)))
       .toEqual([LAB3_ATTACHMENT_FIXTURE.storedName]);
+    const actions = second.flatMap((ticket) => ticket.actions);
+    expect(actions).toHaveLength(LAB4_ACTION_FIXTURES.length);
+    expect(new Set(actions.map((action) => action.status))).toEqual(new Set(["PLANNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]));
+    expect(actions.some((action) => action.followUpRequired && Boolean(action.followUpNote))).toBe(true);
+    expect(actions.some((action) => action.performedById !== null && action.actionAt !== null && Boolean(action.result))).toBe(true);
+    expect(actions.some((action) => action.cancelledAt !== null && Boolean(action.cancellationReason))).toBe(true);
+    expect(actions.every((action) => action.events.length >= 1)).toBe(true);
 
     const users = await prisma.requesterUser.findMany({
       where: { email: { in: [...REQUESTERS, ...OPERATIONAL_USERS].map((user) => user.email) } },

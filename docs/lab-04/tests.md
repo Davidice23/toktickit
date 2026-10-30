@@ -31,11 +31,11 @@ Tests run only against a disposable/local test database or isolated schema expli
 
 | Test ID | Type / AC | What it proves | Expected result | Planned path | Final |
 | --- | --- | --- | --- | --- | --- |
-| MIG-01 | Migration / AC-18 | Fresh Prisma migration creates Action, Action Event, Ticket Workflow Event, versions, relations, and required indexes | Schema validates and fresh migration deploys | `server/tests/lab-04/migration.integration.test.ts` | PLANNED |
-| MIG-02 | Upgrade / AC-18 | Lab 1-3 User, Ticket, Attachment, Public Comment, Internal Note IDs/FKs/ownership survive Lab 3-to-4 upgrade | Before/after oracle matches; legacy Ticket with zero Actions is readable | `server/tests/lab-04/migration.integration.test.ts` | PLANNED |
-| MIG-03 | Recovery / AC-18 | A verified pre-migration disposable snapshot can be restored and passes integrity checks | Restore/recheck succeeds without destructive reset | `server/tests/lab-04/migration.integration.test.ts` | PLANNED |
-| SEED-01 | Integration / AC-18 | Lab 4 seed is repeat-safe | Two runs create no duplicate fixtures/foreign-key breakage | `server/tests/lab-04/seed.integration.test.ts` | PLANNED |
-| SEED-02 | Integration / AC-02,13,18 | Seed includes zero/one/multiple Actions, all key statuses/priorities, assigned/unassigned, active/inactive staff, zero/non-zero dashboard cases | Fixture oracle is explicit and stable | `server/tests/lab-04/seed.integration.test.ts` | PLANNED |
+| MIG-01 | Migration / AC-18 | Fresh Prisma migration creates Action, Action Event, Ticket Workflow Event, versions, relations, and required indexes | Schema validates and fresh migration deploys | `server/tests/lab-04/migration.integration.test.ts` | IMPLEMENTED — pending first disposable-DB CI run |
+| MIG-02 | Upgrade / AC-18 | Lab 1-3 User, Ticket, Attachment, Public Comment, Internal Note IDs/FKs/ownership survive Lab 3-to-4 upgrade | Before/after oracle matches; legacy Ticket with zero Actions is readable | `server/tests/lab-04/migration.integration.test.ts` | IMPLEMENTED — pending first disposable-DB CI run |
+| MIG-03 | Recovery / AC-18 | A verified pre-migration disposable snapshot can be restored and passes integrity checks | Restore/recheck succeeds without destructive reset | `server/tests/lab-04/migration.integration.test.ts` | IMPLEMENTED — pending first disposable-DB CI run |
+| SEED-01 | Integration / AC-18 | Lab 4 seed is repeat-safe | Two runs create no duplicate fixtures/foreign-key breakage | `server/tests/lab-04/seed.integration.test.ts` | IMPLEMENTED — pending first disposable-DB CI run |
+| SEED-02 | Integration / AC-02,13,18 | Seed includes zero/one/multiple Actions, all key statuses/priorities, assigned/unassigned, active/inactive staff, zero/non-zero dashboard cases | Fixture oracle is explicit and stable | `server/tests/lab-04/seed.integration.test.ts` | IMPLEMENTED — pending first disposable-DB CI run |
 
 ### 3.2 Actions Taken API and authorization
 
