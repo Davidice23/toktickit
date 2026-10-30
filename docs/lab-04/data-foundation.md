@@ -60,7 +60,29 @@ records.
 
 ## Evidence status
 
-The schema validates and the server TypeScript build has been run locally.
-Database-backed migration/seed execution is intentionally deferred to the
-disposable PostgreSQL GitHub Actions job. Its exact URL, commit SHA, and pass
-totals are recorded on the Issue #70 pull request after CI completes.
+The schema and migration/seed/recovery suites passed in PR [#77 CI](https://github.com/Davidice23/toktickit/actions/runs/40923264624) on head `503e3af` using its disposable PostgreSQL service. The PR merged as `be1b800`. These results apply to that exact head; follow-up findings below remain open and must not be described as fixed by the green run.
+
+## Follow-ups recorded from PR #77 review
+
+These items were identified after the #70 implementation and remain visible for
+downstream work; no historical workflow identity or resolution time is
+fabricated.
+
+- Seeded `RESOLVED`/`CLOSED` Tickets currently have no `resolvedAt`, and the
+  seed does not create baseline `TicketWorkflowEvent` rows. Existing Lab 1-3
+  Tickets also start with `resolvedAt = NULL` and no workflow history. Before
+  #72, decide and document whether legacy resolved rows get an approximate
+  migration timestamp (`updatedAt`) or intentionally remain outside the
+  “recently resolved” metric; add explicit fixture and migration assertions.
+- The seeded cancelled Action currently records its lifecycle event as
+  `STATUS_CHANGED`; runtime API writes use `CANCELLED`. Normalize seed events
+  and assert matching event kinds before final evidence.
+- The migration does not currently have cross-field SQL `CHECK` constraints.
+  Issue #66 enforces lifecycle invariants at the service boundary; direct SQL
+  writers can still bypass them. Before release, either add a reviewed forward
+  migration with compatible constraints and raw-SQL violation tests, or obtain
+  an explicit, documented decision to rely solely on the service boundary.
+- The migration integration helper currently splits SQL on semicolons. Keep
+  migrations free of dollar-quoted blocks until the helper is replaced with a
+  robust execution approach. Direct FK `RESTRICT` and scoped idempotency
+  uniqueness assertions are still needed in the migration test suite.

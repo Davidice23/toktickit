@@ -1,6 +1,6 @@
 # Lab 4 API Contract
 
-> **Status: Draft for Issue #64 peer review.** Endpoint names and field shapes below are a proposed Contract. Existing Lab 1-3 routes remain available unless this document explicitly extends their request/response requirements. All examples omit secrets and are illustrative rather than captured results.
+> **Status: Approved Contract baseline (PR #75); endpoint implementation is tracked by Issues #66-#72.** Existing Lab 1-3 routes remain available unless this document explicitly extends their request/response requirements. All examples omit secrets and are illustrative rather than captured results.
 
 ## 1. Common conventions
 
@@ -62,6 +62,8 @@ TicketStatus = NEW | OPEN | IN_PROGRESS | WAITING_FOR_REQUESTER |
 
 `GET /api/tickets/:ticketId/actions`
 
+Query: `page` defaults to `1`; `pageSize` defaults to `20` and accepts `10`, `20`, or `50`. Pages are limited to `1-100`. Items are ordered `createdAt ASC, id ASC`.
+
 | Caller | Result |
 | --- | --- |
 | Requester owning the Ticket | `200` safe Action list, ordered `createdAt ASC, id ASC` |
@@ -71,12 +73,14 @@ TicketStatus = NEW | OPEN | IN_PROGRESS | WAITING_FOR_REQUESTER |
 Response:
 
 ```json
-{ "data": [/* Safe Action representation */], "meta": { "totalItems": 2 } }
+{ "data": [/* Safe Action representation */], "meta": { "page": 1, "pageSize": 20, "totalItems": 2, "totalPages": 1, "hasPreviousPage": false, "hasNextPage": false } }
 ```
 
 ### 3.2 Read Actions on an operational Ticket
 
 `GET /api/staff/tickets/:ticketId/actions`
+
+Uses the same bounded pagination and deterministic ordering as the Requester Action list.
 
 | Caller | Result |
 | --- | --- |
@@ -84,7 +88,7 @@ Response:
 | Requester | `403 FORBIDDEN` |
 | Missing Ticket | `404 TICKET_NOT_FOUND` |
 
-The list remains bounded only if pagination becomes necessary. Initial Lab 4 uses all Actions for one Ticket because a Ticket detail screen needs a complete history; API documentation/tests must establish a maximum/alternate paginated form before unbounded production-scale behavior is introduced.
+Action lists are paginated to avoid unbounded responses while allowing the Ticket detail UI to load the complete history across pages.
 
 ### 3.3 Create Action
 
@@ -175,7 +179,7 @@ Status response example:
 
 `GET /api/staff/tickets/:ticketId/history`
 
-IT Staff/Admin receive ordered safe workflow and Action lifecycle events. The response does not expose Internal Note body, secrets, or hidden operational details. The requester Ticket detail receives only the Action list; a dedicated requester history endpoint is out of scope unless separately approved.
+IT Staff/Admin receive ordered safe workflow and Action lifecycle events. Uses the same `page`/`pageSize` bounds as the Action list. Events are ordered by `createdAt ASC`, then source (`ACTION` before `TICKET`), then numeric event ID ascending. The response does not expose Internal Note body, secrets, or hidden operational details. The requester Ticket detail receives only the Action list; a dedicated requester history endpoint is out of scope unless separately approved.
 
 ## 6. Dashboard endpoints
 
@@ -244,7 +248,7 @@ For Administrator, `adminAccountSummary` may contain only aggregate active user 
 
 ## 7. Validation limits and safe failures
 
-Exact conservative limits are finalized in implementation tests and documented there: Action description 1-2,000 trimmed characters; Result 1-2,000 when completed; Follow-up Note 1-2,000 when required; Attachment Notes 0-2,000; cancellation reason 1-1,000. All text is rendered as text, not HTML. Malformed IDs, unknown enum values, blank required text, future/invalid client fields, missing CSRF, expired session, failed database operations, and unrelated nested IDs return deterministic safe outcomes.
+Limits: Action description 1-2,000 trimmed characters; Result 1-2,000 when completed; Follow-up Note 1-2,000 when required; Attachment Notes 0-2,000; cancellation reason 1-1,000; idempotency key 1-200 characters after trimming. All text is rendered as text, not HTML. Malformed IDs, unknown enum values, blank required text, future/invalid client fields, missing CSRF, expired session, failed database operations, and unrelated nested IDs return deterministic safe outcomes.
 
 ## 8. Compatibility
 

@@ -1,6 +1,6 @@
 # Lab 4 UI Specification: Zen Green Actions Taken and Dashboards
 
-> **Status: Draft for Issue #64 peer review.** This specification describes expected behavior before implementation. It does not claim that a screen, responsive layout, or accessibility behavior has already been built or tested.
+> **Status: Approved Contract baseline (PR #75); implementation is tracked by Issues #67-#68.** This specification describes expected behavior before implementation. It does not claim that a screen, responsive layout, or accessibility behavior has already been built or tested.
 
 ## 1. Design intent and navigation
 
