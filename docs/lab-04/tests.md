@@ -236,6 +236,10 @@ Sxr1n confirmed the no-backfill policy and asked for a linked green CI run plus 
 
 The first attempt of [CI run 41233180575](https://github.com/Davidice23/toktickit/actions/runs/41233180575) passed Server and Client but exposed a timing failure in the existing Lab 3 authentication browser test: `getByRole("status")` matched both the success and loading callouts. After rerunning the failed browser job, attempt 2 completed successfully: all three required jobs passed. The focused Lab 4 server suite passed **63/63 tests across 8 files**; `migration.integration.test.ts` passed **1/1** (fresh bootstrap, Lab 3 upgrade, disposable-schema restore), and `seed.integration.test.ts` passed **1/1**. CI used disposable PostgreSQL; no personal/local database was used.
 
+#### PR #81 dashboard CI failure and fixture repair (2026-11-01)
+
+The first exact-head CI run [41244093300](https://github.com/Davidice23/toktickit/actions/runs/41244093300) passed the Client and Browser jobs but failed the Server job in three dashboard integration cases. The test helper explicitly inserted `itPriority = null`, while the Lab 3 upgrade backfills this column and enforces `NOT NULL`. Local server build, a strict TypeScript check of `dashboard.api.test.ts`, and `git diff --check` passed. Follow-up commit `3e904d6` changes the fixture default to `LOW` and uses an explicit `URGENT` value in the urgent-ticket fixture. A new exact-head CI run is required before reporting the dashboard integration suite as passing; this verification is pending publication of the follow-up commit.
+
 
 
 ### 5.6 Exact-main release evidence
