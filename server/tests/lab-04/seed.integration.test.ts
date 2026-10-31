@@ -7,9 +7,14 @@ import {
 import { getPrisma } from "../../src/prisma.js";
 
 const prisma = getPrisma();
+let restoreReopenedFixture: (() => Promise<void>) | undefined;
 
 afterAll(async () => {
-  await prisma.$disconnect();
+  try {
+    await restoreReopenedFixture?.();
+  } finally {
+    await prisma.$disconnect();
+  }
 });
 
 describe.sequential("Lab 4 synthetic Action seed", () => {
@@ -81,6 +86,15 @@ describe.sequential("Lab 4 synthetic Action seed", () => {
     });
     const reopenedFixture = repeated.find((ticket) => ticket.submissionKey === "lab3-demo-005");
     expect(reopenedFixture).toBeDefined();
+    restoreReopenedFixture = async () => {
+      await prisma.ticketWorkflowEvent.deleteMany({
+        where: { ticketId: reopenedFixture!.id, reason: "integration-test:reopen-synthetic-fixture" },
+      });
+      await prisma.ticket.update({
+        where: { id: reopenedFixture!.id },
+        data: { currentStatus: reopenedFixture!.currentStatus, resolvedAt: reopenedFixture!.resolvedAt },
+      });
+    };
     await prisma.$transaction(async (tx) => {
       await tx.ticket.update({
         where: { id: reopenedFixture!.id },
