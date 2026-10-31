@@ -4,6 +4,8 @@
 
 > **Proposed #66 amendment — learner approved the pagination and retry direction; peer re-review and disposable-database verification pending.** The pagination, history, note validation, requester projection, and idempotency-receipt details below are not yet an integrated or peer-approved Contract revision.
 
+> **Proposed #71 implementation detail — peer review and database-backed CI pending.** An operational account cannot be deactivated or demoted to Requester while it owns a Ticket in `IN_PROGRESS`, `RESOLVED`, or `CLOSED`; the affected Tickets must first be reassigned. This preserves BR-14 during concurrent owner changes.
+
 ## 1. Common conventions
 
 ### 1.1 Authentication, authorization, and response envelopes
@@ -179,6 +181,8 @@ Status response example:
 ```
 
 `RESOLVED` is rejected with `422 RESOLUTION_GATE_FAILED` and field/safe rule identifiers when the active owner, completed Action with Result, or absence of active Actions is missing. A Requester advisory endpoint remains separate and cannot satisfy or bypass this gate.
+
+Staff Ticket detail and queue expose `workflowVersion` for clients to submit with the four workflow mutations. The existing Staff detail UI sends the version it loaded and preserves status form values on a failed mutation. For an Administrator `PATCH /api/admin/users/:userId`, attempts to deactivate or demote an operational owner with a Ticket in `IN_PROGRESS`, `RESOLVED`, or `CLOSED` return `409 ACTIVE_TICKET_OWNERSHIP`; after reassignment the mutation may proceed. The admin transaction locks the User before checking ownership, while workflow mutations lock Ticket then share-lock Users; the admin path does not lock Ticket rows while holding the User lock. This policy and its concurrency tests require peer review before integration.
 
 ## 5. Ticket/Action history
 

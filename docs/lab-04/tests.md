@@ -58,12 +58,12 @@ Tests run only against a disposable/local test database or isolated schema expli
 
 | Test ID | Type / AC | What it proves | Expected result | Planned path | Final |
 | --- | --- | --- | --- | --- | --- |
-| WF-01 | API table-driven / AC-09 | Every permitted Ticket status edge succeeds for Staff/Admin and every other edge fails | Exact status/error matrix | `server/tests/lab-04/ticket-workflow.api.test.ts` | PLANNED |
-| WF-02 | API / AC-10 | Resolution gate checks active owner, completed Action with Result, and no active Action | Each missing prerequisite returns `422`; satisfying all succeeds | `server/tests/lab-04/ticket-workflow.api.test.ts` | PLANNED |
-| WF-03 | API / AC-10 | Requester advisory does not alter formal status and is not a required Resolution prerequisite | Status stays unchanged after advisory; Staff may resolve only with actual gate | `server/tests/lab-04/ticket-workflow.api.test.ts` | PLANNED |
-| WF-04 | API / AC-11 | Resolve races against create/start/edit/complete/cancel Action | Database invariant holds; no unsafe resolve/write skew; deterministic conflict where needed | `server/tests/lab-04/ticket-workflow.api.test.ts` | PLANNED |
-| WF-05 | API / AC-08,11 | Reassign/priority/status/role deactivation races use one coordination policy | No stale overwrite; history/version/error is correct | `server/tests/lab-04/ticket-workflow.api.test.ts` | PLANNED |
-| WF-06 | API / AC-08 | Ticket workflow history is append-only, sorted, role-filtered, and contains reason where required | No prior event rewrite/deletion | `server/tests/lab-04/ticket-workflow.api.test.ts` | PLANNED |
+| WF-01 | API table-driven / AC-09 | Every permitted Ticket status edge succeeds for Staff/Admin and every other edge fails | Exact status/error matrix | `server/tests/lab-04/ticket-workflow.api.test.ts` | IMPLEMENTED — pure rule matrix passed locally; real API matrix NOT RUN, CI required |
+| WF-02 | API / AC-10 | Resolution gate checks active owner, completed Action with Result, and no active Action | Each missing prerequisite returns `422`; satisfying all succeeds | `server/tests/lab-04/ticket-workflow.api.test.ts` | IMPLEMENTED — mocked boundary/rules passed locally; database execution NOT RUN |
+| WF-03 | API / AC-10 | Requester advisory does not alter formal status and is not a required Resolution prerequisite | Status stays unchanged after advisory; Staff may resolve only with actual gate | `server/tests/lab-04/ticket-workflow.api.test.ts` | IMPLEMENTED — database execution NOT RUN |
+| WF-04 | API / AC-11 | Resolve races against create/start/edit/complete/cancel Action | Database invariant holds; no unsafe resolve/write skew; deterministic conflict where needed | `server/tests/lab-04/ticket-workflow.api.test.ts` | IMPLEMENTED — controlled PostgreSQL lock-overlap tests NOT RUN |
+| WF-05 | API / AC-08,11 | Reassign/priority/status/role deactivation races use one coordination policy | No stale overwrite; history/version/error is correct | `server/tests/lab-04/ticket-workflow.api.test.ts` | IMPLEMENTED — controlled lock-overlap tests and admin policy NOT RUN |
+| WF-06 | API / AC-08 | Ticket workflow history is append-only, sorted, role-filtered, and contains reason where required | No prior event rewrite/deletion | `server/tests/lab-04/ticket-workflow.api.test.ts` | IMPLEMENTED — database execution NOT RUN; role filtering builds on #66 tests |
 
 ### 3.4 Dashboard API and calculation oracle
 
@@ -207,6 +207,16 @@ At the time of that pre-commit check, four mocked tests were added and the same 
 Run [41188287774](https://github.com/Davidice23/toktickit/actions/runs/41188287774) on head `b08c5bd` used disposable PostgreSQL: migration deploy, seed, build, migration/recovery test, and 11 mocked validation tests passed; full server regression reported **66 passed / 1 failed**. The Action edit/reassignment test expected `ASSIGNED` before `EDITED`, while both changes belong to one atomic operation and the Contract requires ordering by `createdAt` then `id`, not a field-type priority. The test was revised to assert each audit field, old/new value and actor, plus ordered history IDs. This revision requires a new exact-head CI run; the initial failure is not reported as a pass. Client and browser jobs passed on `b08c5bd`. The separately invoked server Lab 4 suite was skipped after the regression failure.
 
 The subsequent PR #78 run [41188839850](https://github.com/Davidice23/toktickit/actions/runs/41188839850) passed all three jobs at head `b863ac0`: server regression **67/67** and focused Lab 4 server suite **24/24**, plus client and browser jobs. These counts apply to that head, not to later reviewer-feedback changes. For the pre-commit feedback revision, **21 mocked unit tests** and local build/type-check passed. Five new validation cases failed before the change and passed afterwards; legacy-note protection and SQL-shape tests were added afterwards. The new real PostgreSQL history query, isolation behavior, and integration cases require new-head CI.
+
+PR #78's reviewer-feedback head `2a373f2` passed all three jobs in [run 41189748345](https://github.com/Davidice23/toktickit/actions/runs/41189748345): server regression **79/79**, focused Lab 4 server suite **36/36**, plus client and browser jobs. Sxr1n approved after reviewing this head; PR #78 merged as `24477c9`. This does not resolve the separate #77 data-foundation follow-ups.
+
+#### Issue #71 pre-PR local verification (2026-10-31)
+
+Branch `feature/71-ticket-workflow-concurrency` started from staging merge `24477c9`. Server and client builds passed. The workflow rules and mocked HTTP boundary suite passed **11/11** locally; the rules suite checks all 64 state pairs, and the HTTP boundary suite mocks authentication/database access. The full client regression suite passed **25/25**, with an existing non-failing React `act(...)` warning in the Lab 1 App test. Standalone strict TypeScript checks of the new workflow and updated Lab 3 test files passed. No PostgreSQL database was started, migrated, or accessed locally.
+
+The new `ticket-workflow.api.test.ts` includes a real backend 64-edge matrix for both roles, authorization/CSRF, resolution/owner gates, advisory behavior, append-only status events, stale versions, and controlled PostgreSQL lock-overlap tests. Those tests and full server/browser regression are **NOT RUN** for #71 until disposable-database CI runs on the actual PR head. The domain tests were written alongside implementation; no prior red integration run is claimed.
+
+The #71 integration suite requires explicit `LAB4_DISPOSABLE_DB=1` as well as `NODE_ENV=test` and a local database named `toktickit_test`; it refuses to run without these guards. Set the opt-in only after verifying that the target is disposable. The Lab 3 and Lab 4 server CI jobs set it for their temporary PostgreSQL services. Teardown targets only the synthetic records created by this suite; these checks do not make other existing database tests safe for a shared database.
 
 ### 5.6 Exact-main release evidence
 

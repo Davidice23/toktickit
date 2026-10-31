@@ -181,6 +181,7 @@ export interface StaffTicketRow extends TicketSummary {
 export interface StaffTicketList { data: StaffTicketRow[]; meta: TicketList["meta"] }
 export interface InternalNote { id: number; ticketId: number; body: string; createdAt: string; author: { id: number; name: string; role: User["role"] } }
 export interface StaffTicketDetail extends Omit<TicketDetail, "itPriority" | "publicComments"> {
+  workflowVersion: number;
   itPriority: TicketPriority | null;
   ownerId: number | null;
   owner: StaffOwner | null;
@@ -202,23 +203,23 @@ export async function fetchStaffTicketDetail(ticketId: number): Promise<StaffTic
   return payload.data;
 }
 
-export async function claimStaffTicket(ticketId: number): Promise<void> {
-  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/claim`, { method: "POST", headers: protectedHeaders(), credentials: "include" });
+export async function claimStaffTicket(ticketId: number, expectedTicketVersion: number): Promise<void> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/claim`, { method: "POST", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ expectedTicketVersion }) });
   await jsonResponse(response, "Unable to claim Ticket");
 }
 
-export async function assignStaffTicket(ticketId: number, ownerId: number | null): Promise<void> {
-  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/assignment`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ ownerId }) });
+export async function assignStaffTicket(ticketId: number, ownerId: number | null, expectedTicketVersion: number): Promise<void> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/assignment`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ ownerId, expectedTicketVersion }) });
   await jsonResponse(response, "Unable to update Ticket owner");
 }
 
-export async function updateStaffTicketPriority(ticketId: number, itPriority: TicketPriority): Promise<void> {
-  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/priority`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ itPriority }) });
+export async function updateStaffTicketPriority(ticketId: number, itPriority: TicketPriority, expectedTicketVersion: number): Promise<void> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/priority`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ itPriority, expectedTicketVersion }) });
   await jsonResponse(response, "Unable to update IT Priority");
 }
 
-export async function updateStaffTicketStatus(ticketId: number, status: TicketStatus, options: { confirmation?: boolean; reason?: string } = {}): Promise<void> {
-  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/status`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ status, ...options }) });
+export async function updateStaffTicketStatus(ticketId: number, status: TicketStatus, expectedTicketVersion: number, options: { confirmation?: boolean; reason?: string } = {}): Promise<void> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/status`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ status, expectedTicketVersion, ...options }) });
   await jsonResponse(response, "Unable to update Ticket status");
 }
 

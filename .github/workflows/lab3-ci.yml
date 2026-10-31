@@ -33,6 +33,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/toktickit_test?schema=public
       NODE_ENV: test
+      LAB4_DISPOSABLE_DB: '1'
       LAB3_SEED_INITIAL_PASSWORD: local-only-password
       CSRF_SECRET: local-only-csrf-secret
     steps:
