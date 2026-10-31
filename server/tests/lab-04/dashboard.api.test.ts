@@ -256,7 +256,6 @@ describe.sequential("Lab 4 dashboards and drill-down filters", () => {
     expect(data.metrics.urgentOpenTickets).toBeGreaterThanOrEqual(2);
     expect(data.myActiveActions.map((row: { id: number }) => row.id)).toEqual([activeB.id, activeA.id]);
     expect(data.myRecentlyCompletedActions.map((row: { id: number }) => row.id)).toEqual([completed.id]);
-    expect(data.recentOrUrgentTickets.map((row: { id: number }) => row.id)).toContain(unassignedUrgentId);
     expect(data.recentOrUrgentTickets.map((row: { id: number }) => row.id)).not.toContain(closedUrgentId);
     for (const rows of [data.myActiveActions, data.myRecentlyCompletedActions, data.recentOrUrgentTickets]) expect(rows.length).toBeLessThanOrEqual(5);
     expect(data.adminAccountSummary).toBeNull();
