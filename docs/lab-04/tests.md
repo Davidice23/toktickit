@@ -201,6 +201,10 @@ These local checks are not integration-test evidence. The feature PR remains pen
 
 After the learner approved the pagination/replay direction, four mocked tests were added; the same command reported **11 passed**. `prisma generate`, `prisma validate` with a non-connected placeholder URL, server build, and strict TypeScript checks of the Action and migration test files passed locally. The new additive receipt migration, old-record preservation, page-101 fixture, real transaction/replay, recovery, and regression suites are **NOT RUN** on PostgreSQL. Docker's local engine was unavailable; no database was started, migrated, or modified. The Action history endpoint still has a separate 100-page cap and controlled-overlap concurrency proof is outstanding.
 
+#### PR #78 initial CI failure (2026-10-31)
+
+Run [41188287774](https://github.com/Davidice23/toktickit/actions/runs/41188287774) on head `b08c5bd` used disposable PostgreSQL: migration deploy, seed, build, migration/recovery test, and 11 mocked validation tests passed; full server regression reported **66 passed / 1 failed**. The Action edit/reassignment test expected `ASSIGNED` before `EDITED`, while both changes belong to one atomic operation and the Contract requires ordering by `createdAt` then `id`, not a field-type priority. The test was revised to assert each audit field, old/new value and actor, plus ordered history IDs. This revision requires a new exact-head CI run; the initial failure is not reported as a pass. Client and browser jobs passed on `b08c5bd`. The separately invoked server Lab 4 suite was skipped after the regression failure.
+
 ### 5.6 Exact-main release evidence
 
 After release, record the resolved `main` SHA, CI event URL, `head_sha`, all required job conclusions, command output totals, and whether any test was skipped/not run. A green PR merge-ref or staging run is not a substitute for the exact final-main run.

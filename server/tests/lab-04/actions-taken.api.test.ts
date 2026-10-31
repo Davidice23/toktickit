@@ -295,7 +295,22 @@ describe.sequential("Lab 4 Actions Taken API and authorization", () => {
     expect(edited.body.data).toMatchObject({ version: 2, description: "Updated diagnostic plan", followUpRequired: true, assignee: { id: secondStaff.id } });
     expect(edited.body.meta.ticketVersion).toBe(3);
     const events = await prisma.actionTakenEvent.findMany({ where: { actionId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
-    expect(events.map((event) => event.kind)).toEqual(["CREATED", "ASSIGNED", "EDITED", "EDITED", "EDITED"]);
+    // BR-17 specifies chronological order with an ID tie-break, not a priority
+    // between fields changed by the same atomic update. Verify the actual
+    // audit contents as well as the order exposed by the history endpoint.
+    expect(events).toHaveLength(5);
+    expect(events[0]).toMatchObject({ kind: "CREATED", actorId: staff.userId, toStatus: "PLANNED" });
+    expect(events.slice(1)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "ASSIGNED", actorId: staff.userId, fieldName: "assigneeId", oldValue: staff.userId, newValue: secondStaff.id }),
+      expect.objectContaining({ kind: "EDITED", actorId: staff.userId, fieldName: "description", oldValue: "Inspect the reported issue.", newValue: "Updated diagnostic plan" }),
+      expect.objectContaining({ kind: "EDITED", actorId: staff.userId, fieldName: "followUpRequired", oldValue: false, newValue: true }),
+      expect.objectContaining({ kind: "EDITED", actorId: staff.userId, fieldName: "followUpNote", oldValue: null, newValue: "Requester will verify the change." }),
+    ]));
+    const sortedEvents = [...events].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id - b.id);
+    expect(events.map((event) => event.id)).toEqual(sortedEvents.map((event) => event.id));
+    const history = await staff.agent.get(`/api/staff/tickets/${ticketId}/history`);
+    expect(history.status).toBe(200);
+    expect(history.body.data.map((event: { id: string }) => event.id)).toEqual(events.map((event) => `action:${event.id}`));
 
     const followUpCleared = await staff.agent.patch(`/api/staff/tickets/${ticketId}/actions/${actionId}`)
       .set("X-CSRF-Token", staff.csrfToken)
