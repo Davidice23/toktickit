@@ -210,7 +210,7 @@ describe.sequential("Lab 4 Ticket workflow API", () => {
     }
   });
 
-  it("rejects deactivation or demotion of an owner until protected Tickets are reassigned", async () => {
+  it("rejects deactivation or demotion while a Ticket is in progress, then allows it after reassignment", async () => {
     const user = await prisma.requesterUser.create({ data: { name: "Synthetic owner", email: `lab4-owner-${randomUUID()}@example.test`, passwordHash: await hashPassword(randomUUID()), role: "IT_STAFF", isActive: true } });
     syntheticUserIds.push(user.id);
     const ticket = await makeTicket("IN_PROGRESS", user.id);
@@ -225,6 +225,35 @@ describe.sequential("Lab 4 Ticket workflow API", () => {
     const deactivate = await admin.agent.patch(`/api/admin/users/${user.id}`).set("X-CSRF-Token", admin.csrfToken).send({ isActive: false });
     expect(deactivate.status).toBe(200);
     expect(deactivate.body.data.isActive).toBe(false);
+  });
+
+  it("preserves historical owners for resolved/closed Tickets and requires an active owner to close", async () => {
+    const resolvedOwner = await prisma.requesterUser.create({ data: { name: "Resolved historical owner", email: `lab4-resolved-owner-${randomUUID()}@example.test`, passwordHash: await hashPassword(randomUUID()), role: "IT_STAFF", isActive: true } });
+    syntheticUserIds.push(resolvedOwner.id);
+    const resolvedTicket = await makeTicket("RESOLVED", resolvedOwner.id);
+    const demoted = await admin.agent.patch(`/api/admin/users/${resolvedOwner.id}`).set("X-CSRF-Token", admin.csrfToken).send({ role: "REQUESTER" });
+    expect(demoted.status).toBe(200);
+    expect(demoted.body.data).toMatchObject({ role: "REQUESTER", isActive: true });
+
+    const blockedClose = await staff.agent.patch(`/api/staff/tickets/${resolvedTicket.id}/status`).set("X-CSRF-Token", staff.csrfToken)
+      .send({ expectedTicketVersion: 1, status: "CLOSED", confirmation: true });
+    expect(blockedClose.status).toBe(422);
+    expect(blockedClose.body.error.fields.ownerId).toBeTruthy();
+
+    const reassigned = await staff.agent.patch(`/api/staff/tickets/${resolvedTicket.id}/assignment`).set("X-CSRF-Token", staff.csrfToken)
+      .send({ expectedTicketVersion: 1, ownerId: staff.userId });
+    expect(reassigned.status).toBe(200);
+    const closed = await staff.agent.patch(`/api/staff/tickets/${resolvedTicket.id}/status`).set("X-CSRF-Token", staff.csrfToken)
+      .send({ expectedTicketVersion: 2, status: "CLOSED", confirmation: true });
+    expect(closed.status).toBe(200);
+
+    const closedOwner = await prisma.requesterUser.create({ data: { name: "Closed historical owner", email: `lab4-closed-owner-${randomUUID()}@example.test`, passwordHash: await hashPassword(randomUUID()), role: "IT_STAFF", isActive: true } });
+    syntheticUserIds.push(closedOwner.id);
+    const closedTicket = await makeTicket("CLOSED", closedOwner.id);
+    const deactivated = await admin.agent.patch(`/api/admin/users/${closedOwner.id}`).set("X-CSRF-Token", admin.csrfToken).send({ isActive: false });
+    expect(deactivated.status).toBe(200);
+    expect(deactivated.body.data.isActive).toBe(false);
+    expect((await prisma.ticket.findUniqueOrThrow({ where: { id: closedTicket.id } })).ownerId).toBe(closedOwner.id);
   });
 
   it("records reason and actor in append-only history and clears resolvedAt on reopening", async () => {
@@ -258,9 +287,11 @@ describe.sequential("Lab 4 Ticket workflow API", () => {
     const active = finalTicket.actions.filter((action) => action.status === "PLANNED" || action.status === "IN_PROGRESS");
     expect(finalTicket.workflowVersion).toBe(2);
     if (resolved.status === 200) {
+      expect(created.status).toBe(409);
       expect(finalTicket.currentStatus).toBe("RESOLVED");
       expect(active).toHaveLength(0);
     } else {
+      expect(resolved.status).toBe(409);
       expect(created.status).toBe(201);
       expect(finalTicket.currentStatus).toBe("IN_PROGRESS");
       expect(active).toHaveLength(1);
@@ -344,7 +375,7 @@ describe.sequential("Lab 4 Ticket workflow API", () => {
     expect(updated.itPriority).toBe(priority.status === 200 ? "HIGH" : initialPriority);
   }, 30000);
 
-  it("prevents owner deactivation racing Resolve through a verified User lock", async () => {
+  it("serializes owner deactivation against Resolve through a verified User lock", async () => {
     const user = await prisma.requesterUser.create({ data: { name: "Race owner", email: `lab4-race-${randomUUID()}@example.test`, passwordHash: await hashPassword(randomUUID()), role: "IT_STAFF", isActive: true } });
     syntheticUserIds.push(user.id);
     const ticket = await makeTicket("IN_PROGRESS", user.id);
@@ -356,9 +387,12 @@ describe.sequential("Lab 4 Ticket workflow API", () => {
         .send({ isActive: false }).then((response) => response),
     ]);
     expect(resolved.status).toBe(200);
-    expect(deactivated.status).toBe(409);
-    expect((await prisma.requesterUser.findUniqueOrThrow({ where: { id: user.id } })).isActive).toBe(true);
-    expect((await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } })).currentStatus).toBe("RESOLVED");
+    expect([200, 409]).toContain(deactivated.status);
+    const finalUser = await prisma.requesterUser.findUniqueOrThrow({ where: { id: user.id } });
+    const finalTicket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
+    expect(finalTicket.currentStatus).toBe("RESOLVED");
+    if (deactivated.status === 200) expect(finalUser.isActive).toBe(false);
+    else expect(finalUser.isActive).toBe(true);
   }, 30000);
 
   it("rejects stale updates without overwriting the current owner, priority, or status", async () => {

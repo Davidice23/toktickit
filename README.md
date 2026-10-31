@@ -66,6 +66,14 @@ npm run test:lab3
 npm run build
 ```
 
+Run the Lab 4 suite from `server/` with `npm run test:lab4`. Its database-backed
+tests require an explicitly disposable local PostgreSQL database named
+`toktickit_test`. Set `NODE_ENV=test` and
+`LAB4_DISPOSABLE_DB=1` only when `DATABASE_URL` points to that local test
+database; the workflow suite fails closed unless the database name and local
+host are exactly allow-listed. Never set this flag for a development, shared,
+or production database. CI provisions the disposable database automatically.
+
 ```powershell
 cd client
 npm test

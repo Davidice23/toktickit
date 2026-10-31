@@ -828,7 +828,10 @@ app.patch("/api/admin/users/:userId", requireSession, requireNormalSession, requ
         if (activeAdmins <= 1) return { kind: "last" as const };
       }
       if (target.isActive && (target.role === "IT_STAFF" || target.role === "ADMINISTRATOR") && (!nextActive || nextRole === "REQUESTER")) {
-        const owned = await tx.ticket.findFirst({ where: { ownerId: userId, currentStatus: { in: [TicketStatus.IN_PROGRESS, TicketStatus.RESOLVED, TicketStatus.CLOSED] } }, select: { id: true } });
+        // Only work actively being performed blocks account deactivation/demotion.
+        // RESOLVED/CLOSED Tickets keep their historical owner reference; a later
+        // transition that requires an active owner will require reassignment.
+        const owned = await tx.ticket.findFirst({ where: { ownerId: userId, currentStatus: TicketStatus.IN_PROGRESS }, select: { id: true } });
         if (owned) return { kind: "owns_required_tickets" as const };
       }
       const user = await tx.requesterUser.update({ where: { id: userId }, data, select: adminUserFields });
@@ -839,7 +842,7 @@ app.patch("/api/admin/users/:userId", requireSession, requireNormalSession, requ
     if (outcome.kind === "self") return res.status(409).json(errorBody("SELF_DEACTIVATION", "You cannot deactivate your own Administrator account"));
     if (outcome.kind === "duplicate") return res.status(409).json(errorBody("DUPLICATE_EMAIL", "A user with this email already exists", { email: "Email is already in use" }));
     if (outcome.kind === "last") return res.status(409).json(errorBody("LAST_ADMIN", "At least one active Administrator must remain"));
-    if (outcome.kind === "owns_required_tickets") return res.status(409).json(errorBody("ACTIVE_TICKET_OWNERSHIP", "Reassign Tickets that require an active owner before deactivating or changing this user's operational role"));
+    if (outcome.kind === "owns_required_tickets") return res.status(409).json(errorBody("ACTIVE_TICKET_OWNERSHIP", "Reassign Tickets currently in progress before deactivating or changing this user's operational role"));
     return res.status(200).json({ data: adminSafeUser(outcome.user) });
   } catch (error) {
     if (typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002") return res.status(409).json(errorBody("DUPLICATE_EMAIL", "A user with this email already exists", { email: "Email is already in use" }));
