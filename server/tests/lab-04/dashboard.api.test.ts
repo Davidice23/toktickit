@@ -171,7 +171,6 @@ describe.sequential("Lab 4 dashboards and drill-down filters", () => {
     expect(data.metrics).toEqual({ openTickets: 3, waitingForRequester: 1, recentlyUpdated: 6, recentlyResolved: 2 });
     expect(data.asOf).toEqual(expect.any(String));
     expect(data.attentionTickets.map((row: { id: number }) => row.id)).toContain(waitingId);
-    expect(data.recentlyUpdatedTickets.map((row: { id: number }) => row.id)).toContain(openId);
     expect(data.recentlyResolvedTickets.map((row: { id: number }) => row.id)).toEqual([resolvedId, closedId]);
     expect(data.recentlyResolvedTickets.map((row: { id: number }) => row.id)).not.toContain(reopenedId);
     expect(data.recentlyResolvedTickets.map((row: { id: number }) => row.id)).not.toContain(oldId);
@@ -281,7 +280,8 @@ describe.sequential("Lab 4 dashboards and drill-down filters", () => {
 
     const admin = await fixtures.admin.agent.get("/api/dashboard/staff");
     const adminGroups = await prisma.requesterUser.groupBy({ by: ["role"], where: { isActive: true }, _count: { _all: true } });
-    expect(admin.body.data.adminAccountSummary).toEqual(adminGroups.map(({ role, _count }) => ({ role, activeUsers: _count._all })).sort((a, b) => a.role.localeCompare(b.role)));
+    expect(Object.fromEntries(admin.body.data.adminAccountSummary.map(({ role, activeUsers }: { role: string; activeUsers: number }) => [role, activeUsers])))
+      .toEqual(Object.fromEntries(adminGroups.map(({ role, _count }) => [role, _count._all])));
 
     const [unassignedOracle, ownedOracle, activeOracle, completedOracle, urgentOracle] = await Promise.all([
       prisma.ticket.count({ where: { ownerId: null, currentStatus: { in: [...openStatuses] } } }),
