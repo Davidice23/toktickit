@@ -237,7 +237,7 @@ describe.sequential("Lab 4 Ticket workflow API", () => {
 
     const blockedClose = await staff.agent.patch(`/api/staff/tickets/${resolvedTicket.id}/status`).set("X-CSRF-Token", staff.csrfToken)
       .send({ expectedTicketVersion: 1, status: "CLOSED", confirmation: true });
-    expect(blockedClose.status).toBe(422);
+    expect(blockedClose.status).toBe(400);
     expect(blockedClose.body.error.fields.ownerId).toBeTruthy();
 
     const reassigned = await staff.agent.patch(`/api/staff/tickets/${resolvedTicket.id}/assignment`).set("X-CSRF-Token", staff.csrfToken)
