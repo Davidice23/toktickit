@@ -52,7 +52,7 @@ async function createTicket(requesterId: number, overrides: Partial<Prisma.Ticke
       description: "Disposable fixture used by the dashboard integration test.",
       requestedPriority: "MEDIUM",
       currentStatus: TicketStatus.NEW,
-      itPriority: null,
+      itPriority: "LOW",
       ownerId: null,
       createdAt: now,
       updatedAt: now,
@@ -236,7 +236,7 @@ describe.sequential("Lab 4 dashboards and drill-down filters", () => {
 
   it("calculates operational counts once per Action/Ticket, scopes Actions to the logged-in Staff, and exposes filters", async () => {
     const unassignedUrgentId = await createTicket(fixtures.requesterA.userId, { currentStatus: TicketStatus.OPEN, requestedPriority: "MEDIUM", itPriority: "URGENT" });
-    const otherOwnedUrgentId = await createTicket(fixtures.requesterA.userId, { currentStatus: TicketStatus.IN_PROGRESS, ownerId: fixtures.otherStaff.userId, requestedPriority: "URGENT", itPriority: null });
+    const otherOwnedUrgentId = await createTicket(fixtures.requesterA.userId, { currentStatus: TicketStatus.IN_PROGRESS, ownerId: fixtures.otherStaff.userId, requestedPriority: "URGENT", itPriority: "URGENT" });
     const myOwnedId = await createTicket(fixtures.requesterA.userId, { currentStatus: TicketStatus.REOPENED, ownerId: fixtures.staff.userId, requestedPriority: "MEDIUM", itPriority: "LOW" });
     const completedTicketId = await createTicket(fixtures.requesterA.userId, { currentStatus: TicketStatus.OPEN, ownerId: fixtures.otherStaff.userId });
     const closedUrgentId = await createTicket(fixtures.requesterA.userId, { currentStatus: TicketStatus.CLOSED, requestedPriority: "URGENT", itPriority: "URGENT", resolvedAt: new Date() });
