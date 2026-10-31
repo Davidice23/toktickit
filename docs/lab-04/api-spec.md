@@ -4,7 +4,7 @@
 
 > **Proposed #66 amendment — learner approved the pagination and retry direction; peer re-review and disposable-database verification pending.** The pagination, history, note validation, requester projection, and idempotency-receipt details below are not yet an integrated or peer-approved Contract revision.
 
-> **Proposed #71 reviewer-feedback amendment — learner approved; peer re-review and database-backed CI pending.** Deactivation/demotion is blocked only while the operational owner has a Ticket currently in `IN_PROGRESS`. `RESOLVED`/`CLOSED` owner references remain historical attribution and do not permanently block account changes. The existing active-owner check still applies when transitioning into `IN_PROGRESS`, `RESOLVED`, or `CLOSED`; after an owner becomes inactive/non-operational, reassign before any of those transitions.
+> **Proposed #71 reviewer-feedback amendment — learner approved; disposable-database CI passed on `eb13ec9` (run [41226258281](https://github.com/Davidice23/toktickit/actions/runs/41226258281)); Sxr1n re-review pending.** Deactivation/demotion is blocked only while the operational owner has a Ticket currently in `IN_PROGRESS`. `RESOLVED`/`CLOSED` owner references remain historical attribution and do not permanently block account changes. The existing active-owner check still applies when transitioning into `IN_PROGRESS`, `RESOLVED`, or `CLOSED`; after an owner becomes inactive/non-operational, reassign before any of those transitions.
 
 ## 1. Common conventions
 
