@@ -69,11 +69,11 @@ Tests run only against a disposable/local test database or isolated schema expli
 
 | Test ID | Type / AC | What it proves | Expected result | Planned path | Final |
 | --- | --- | --- | --- | --- | --- |
-| DASH-R-01 | API / AC-12 | Requester A receives own open/attention/recent metrics and bounded rows | Counts equal independent fixture/database oracle; no B records | `server/tests/lab-04/requester-dashboard.api.test.ts` | PLANNED |
-| DASH-R-02 | API / AC-12,14 | Requester zero state, date boundary, reopened/resolved semantics, ordering, and drill-down filter | Correct zero/rows/predicate at fixed `asOf` | `server/tests/lab-04/requester-dashboard.api.test.ts` | PLANNED |
-| DASH-S-01 | API / AC-13 | Staff values for unassigned, owned-open, current-user active Actions, recently completed Actions, urgent Tickets | Values equal independent database oracle; owner != action assignee case covered | `server/tests/lab-04/staff-dashboard.api.test.ts` | PLANNED |
-| DASH-S-02 | API / AC-13,14 | No duplicate count from Action join, stable tie order, pagination/list bounds, correct staff/admin access | Exact counts and bounded rows; requester forbidden | `server/tests/lab-04/staff-dashboard.api.test.ts` | PLANNED |
-| DASH-S-03 | API / AC-14 | Each card drill-down query resolves to the same eligible Ticket/Action set | IDs/predicate match card semantics | `server/tests/lab-04/staff-dashboard.api.test.ts` | PLANNED |
+| DASH-R-01 | API / AC-12 | Requester A receives own open/attention/recent metrics and bounded rows | Counts equal independent fixture/database oracle; no B records | `server/tests/lab-04/dashboard.api.test.ts` | IMPLEMENTED — CI verification pending |
+| DASH-R-02 | API / AC-12,14 | Requester zero state, 14-day half-open window, reopened/resolved semantics, bounded ordering, and drill-down filter | Correct zero/rows/predicate at one server `asOf`; reviewer/CI verification pending | `server/tests/lab-04/dashboard.api.test.ts` | IMPLEMENTED — CI verification pending |
+| DASH-S-01 | API / AC-13 | Staff values for unassigned, owned-open, current-user active Actions, recently completed Actions, urgent Tickets | Values equal independent database oracle; owner != action assignee case covered | `server/tests/lab-04/dashboard.api.test.ts` | IMPLEMENTED — CI verification pending |
+| DASH-S-02 | API / AC-13,14 | No duplicate Ticket rows from multiple Actions, bounded arrays, deterministic ordering, correct staff/admin access | Exact counts and bounded rows; requester forbidden | `server/tests/lab-04/dashboard.api.test.ts` | IMPLEMENTED — CI verification pending |
+| DASH-S-03 | API / AC-14 | Each card drill-down query resolves to the same eligible Ticket/Action set | IDs/predicate match card semantics | `server/tests/lab-04/dashboard.api.test.ts` | IMPLEMENTED — CI verification pending |
 | PERF-01 | Performance-smoke / AC-13,14 | Bounded dashboard query behavior on documented synthetic volume | Recorded plan/row count/runtime/query evidence meets approved non-production threshold | `server/tests/lab-04/dashboard-performance.smoke.test.ts` | PLANNED |
 
 ### 3.5 Client component, style, and accessibility

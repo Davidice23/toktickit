@@ -131,10 +131,10 @@ For an owned Ticket that does not exist, the requester API returns the same safe
 | --- | --- |
 | BR-19 | “Open Ticket” means status in `NEW`, `OPEN`, `IN_PROGRESS`, `WAITING_FOR_REQUESTER`, or `REOPENED`; it excludes `RESOLVED`, `CLOSED`, and `CANCELLED`. |
 | BR-20 | Requester “needs attention” means an owned Ticket in `WAITING_FOR_REQUESTER`. |
-| BR-21 | Requester “recently updated” lists owned Tickets updated during the preceding 14 calendar days, bounded by `[start,end)` and ordered by `updatedAt DESC, id DESC`. |
-| BR-22 | Requester “recently resolved” lists owned Tickets whose server-maintained `resolvedAt` is in the preceding 14 calendar days and whose current status is `RESOLVED` or `CLOSED`. Reopened Tickets do not count until resolved again. |
+| BR-21 | Requester “recently updated” lists owned Tickets updated during the preceding 14-day interval `[asOf - 14 days, asOf)` and ordered by `updatedAt DESC, id DESC`. The dashboard's `asOf` is included in its drill-down URL so the list uses the same interval. |
+| BR-22 | Requester “recently resolved” lists owned Tickets whose server-maintained `resolvedAt` is in `[asOf - 14 days, asOf)` and whose current status is `RESOLVED` or `CLOSED`. Reopened Tickets do not count until resolved again. The dashboard's `asOf` is included in its drill-down URL. |
 | BR-23 | IT Staff “unassigned open” means an open Ticket with no owner. “My owned open” means an open Ticket whose `ownerId` is the authenticated operational user. |
-| BR-24 | IT Staff “my active Actions” means Actions assigned to the authenticated operational user with status `PLANNED` or `IN_PROGRESS`. “My recently completed Actions” means Actions with `performedById` equal to that user and `actionAt` in the preceding 14 days. These are separate metrics. |
+| BR-24 | IT Staff “my active Actions” means Actions assigned to the authenticated operational user with status `PLANNED` or `IN_PROGRESS`. “My recently completed Actions” means Actions with `performedById` equal to that user and `actionAt` in `[asOf - 14 days, asOf)`. These are separate metrics, and the `asOf` value is included in the completed-Action drill-down URL. |
 | BR-25 | “Urgent” means an open Ticket whose `itPriority` is `URGENT`, or whose `itPriority` is null and whose Requester priority is `URGENT`. |
 | BR-26 | Dashboard time calculation stores UTC and presents Asia/Bangkok time. Each response uses one `asOf` timestamp for all metrics. |
 | BR-27 | A metric with no match returns `0`; its compact list returns `[]` and the UI supplies an actionable empty-state message. |

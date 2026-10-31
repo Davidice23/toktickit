@@ -4,6 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { ITPriority, Prisma, RequestedPriority, TicketStatus } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 import { lab4ActionsRouter } from "./lab4-actions.js";
+import { dashboardOpenStatuses, dashboardWindowStart, lab4DashboardRouter, parseDashboardAsOf } from "./lab4-dashboard.js";
 import { lab4TicketWorkflowRouter } from "./lab4-ticket-workflow.js";
 import multer from "multer";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
@@ -344,10 +345,15 @@ app.get("/api/tickets", requireSession, requireNormalSession, requireRoles("REQU
   const priority = req.query.requestedPriority;
   if (priority !== undefined && !Object.values(RequestedPriority).includes(priority as RequestedPriority)) fields.requestedPriority = "Unsupported priority";
   if (req.query.status !== undefined && (typeof req.query.status !== "string" || !Object.values(TicketStatus).includes(req.query.status as TicketStatus))) fields.status = "Unsupported status";
+  const scope = req.query.scope;
+  if (scope !== undefined && (typeof scope !== "string" || !["open", "recently-updated", "recently-resolved"].includes(scope))) fields.scope = "Unsupported Ticket scope";
+  const requestedAsOf = parseDashboardAsOf(req.query.asOf);
+  if (req.query.asOf !== undefined && !requestedAsOf) fields.asOf = "asOf must be a canonical ISO-8601 UTC timestamp";
   if (Object.keys(fields).length) return validationError(res, fields);
 
   try {
-    const where: any = { requesterId: requesterId as number };
+    const where: Prisma.TicketWhereInput = { requesterId: requesterId as number };
+    const predicates: Prisma.TicketWhereInput[] = [];
     if (search) where.OR = [
       { ticketNumber: { contains: search, mode: "insensitive" } },
       { summary: { contains: search, mode: "insensitive" } },
@@ -355,8 +361,17 @@ app.get("/api/tickets", requireSession, requireNormalSession, requireRoles("REQU
     ];
     if (categoryId) where.categoryId = categoryId;
     if (relatedSystemId) where.relatedSystemId = relatedSystemId;
-    if (priority) where.requestedPriority = priority;
-    if (req.query.status) where.currentStatus = req.query.status;
+    if (priority) where.requestedPriority = priority as RequestedPriority;
+    if (typeof req.query.status === "string") predicates.push({ currentStatus: req.query.status as TicketStatus });
+    const asOf = requestedAsOf ?? new Date();
+    const start = dashboardWindowStart(asOf);
+    if (scope === "open") predicates.push({ currentStatus: { in: [...dashboardOpenStatuses] } });
+    if (scope === "recently-updated") predicates.push({ updatedAt: { gte: start, lt: asOf } });
+    if (scope === "recently-resolved") predicates.push({
+      currentStatus: { in: [TicketStatus.RESOLVED, TicketStatus.CLOSED] },
+      resolvedAt: { gte: start, lt: asOf },
+    });
+    if (predicates.length) where.AND = predicates;
     const orderField = sortBy === "ticketDate" ? "createdAt" : sortBy;
     const orderBy: any[] = [{ [orderField]: sortDirection }, { id: "desc" }];
     const prisma = getPrisma();
@@ -502,7 +517,7 @@ const staffQueueSortFields: Record<string, string> = {
   itPriority: "itPriority",
   owner: "ownerId",
 };
-const staffQueueParams = new Set(["search", "status", "requestedPriority", "itPriority", "owner", "sortBy", "sortDirection", "page", "pageSize"]);
+const staffQueueParams = new Set(["search", "status", "requestedPriority", "itPriority", "owner", "scope", "asOf", "sortBy", "sortDirection", "page", "pageSize"]);
 const staffTicketSelect = {
   id: true,
   ticketNumber: true,
@@ -564,6 +579,11 @@ app.get("/api/staff/tickets", requireSession, requireNormalSession, requireRoles
   const owner = req.query.owner;
   if (owner !== undefined && typeof owner === "string" && !["unassigned", "me"].includes(owner) && !positiveInteger(owner)) fields.owner = "Owner must be unassigned, me, or a positive User ID";
   if (owner !== undefined && typeof owner !== "string") fields.owner = "Owner must be unassigned, me, or a positive User ID";
+  const scope = req.query.scope;
+  const staffScopes = ["unassigned-open", "my-owned-open", "my-active-actions", "my-recently-completed-actions", "urgent-open"];
+  if (scope !== undefined && (typeof scope !== "string" || !staffScopes.includes(scope))) fields.scope = "Unsupported Staff Ticket scope";
+  const requestedAsOf = parseDashboardAsOf(req.query.asOf);
+  if (req.query.asOf !== undefined && !requestedAsOf) fields.asOf = "asOf must be a canonical ISO-8601 UTC timestamp";
   const sortBy = req.query.sortBy === undefined ? "updatedAt" : req.query.sortBy;
   if (typeof sortBy !== "string" || !staffQueueSortFields[sortBy]) fields.sortBy = "Unsupported sort field";
   const sortDirection = req.query.sortDirection === undefined ? "desc" : req.query.sortDirection;
@@ -578,7 +598,7 @@ app.get("/api/staff/tickets", requireSession, requireNormalSession, requireRoles
   if (!auth) return;
   const validPage = page as number;
   const validPageSize = pageSize as number;
-  const where: any = {};
+  const where: Prisma.TicketWhereInput = {};
   if (search) {
     where.OR = [
       { ticketNumber: { contains: search, mode: "insensitive" } },
@@ -588,12 +608,27 @@ app.get("/api/staff/tickets", requireSession, requireNormalSession, requireRoles
       { requester: { email: { contains: search, mode: "insensitive" } } },
     ];
   }
-  if (typeof status === "string") where.currentStatus = status;
-  if (typeof requestedPriority === "string") where.requestedPriority = requestedPriority;
-  if (typeof itPriority === "string") where.itPriority = itPriority === "UNASSIGNED" ? null : itPriority;
+  if (typeof status === "string") where.currentStatus = status as TicketStatus;
+  if (typeof requestedPriority === "string") where.requestedPriority = requestedPriority as RequestedPriority;
+  if (typeof itPriority === "string") where.itPriority = itPriority === "UNASSIGNED" ? null : itPriority as ITPriority;
   if (owner === "unassigned") where.ownerId = null;
   if (owner === "me") where.ownerId = auth.user.id;
   if (typeof owner === "string" && positiveInteger(owner)) where.ownerId = positiveInteger(owner);
+  if (typeof scope === "string") {
+    const asOf = requestedAsOf ?? new Date();
+    const start = dashboardWindowStart(asOf);
+    const openScope = { currentStatus: { in: [...dashboardOpenStatuses] } } satisfies Prisma.TicketWhereInput;
+    const scopePredicate: Prisma.TicketWhereInput = scope === "unassigned-open"
+      ? { ...openScope, ownerId: null }
+      : scope === "my-owned-open"
+        ? { ...openScope, ownerId: auth.user.id }
+        : scope === "my-active-actions"
+          ? { actions: { some: { assigneeId: auth.user.id, status: { in: ["PLANNED", "IN_PROGRESS"] } } } }
+          : scope === "my-recently-completed-actions"
+            ? { actions: { some: { performedById: auth.user.id, status: "COMPLETED", actionAt: { gte: start, lt: asOf } } } }
+            : { ...openScope, OR: [{ itPriority: "URGENT" }, { itPriority: null, requestedPriority: "URGENT" }] };
+    where.AND = [...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []), scopePredicate];
+  }
   try {
     const prisma = getPrisma();
     const orderField = staffQueueSortFields[sortBy as string];
@@ -875,4 +910,5 @@ app.post("/api/admin/users/:userId/initial-password", requireSession, requireNor
 });
 
 app.use(lab4ActionsRouter);
+app.use(lab4DashboardRouter);
 export default app;

@@ -214,14 +214,14 @@ Requester only. Example:
     "drillDown": {
       "openTickets": "/my-tickets?scope=open",
       "waitingForRequester": "/my-tickets?status=WAITING_FOR_REQUESTER",
-      "recentlyUpdated": "/my-tickets?scope=recently-updated",
-      "recentlyResolved": "/my-tickets?scope=recently-resolved"
+      "recentlyUpdated": "/my-tickets?scope=recently-updated&asOf=2026-10-29T10%3A00%3A00.000Z",
+      "recentlyResolved": "/my-tickets?scope=recently-resolved&asOf=2026-10-29T10%3A00%3A00.000Z"
     }
   }
 }
 ```
 
-Each array is bounded to five rows and ordered according to BR-17/BR-21/BR-22. The existing requester Tickets endpoint is extended with documented, server-enforced `scope`/`status` filters used by these URLs. It still scopes all data to the session Requester.
+Each array is bounded to five rows and ordered according to BR-17/BR-21/BR-22. `asOf` is captured once per dashboard request and the recent window is the half-open interval `[asOf - 14 days, asOf)`. The existing requester Tickets endpoint accepts `scope=open`, `scope=recently-updated`, and `scope=recently-resolved`, plus the existing `status` filter. The two recent scopes also accept the dashboard's `asOf` value as a canonical ISO-8601 UTC query parameter so a card drill-down uses the exact same interval. Filters compose by intersection; every query remains scoped to the authenticated Requester. `open` includes only BR-19 statuses; `recently-resolved` requires a current `RESOLVED`/`CLOSED` status and a non-null `resolvedAt` in the recent interval.
 
 ### 6.2 Operational dashboard
 
@@ -241,11 +241,13 @@ IT Staff/Admin only. Example metric groups:
       "urgentOpenTickets": 2
     },
     "myActiveActions": [/* bounded Action rows */],
+    "myRecentlyCompletedActions": [/* bounded completed Action rows */],
     "recentOrUrgentTickets": [/* bounded staff Ticket rows */],
     "drillDown": {
       "unassignedOpenTickets": "/staff-tickets?scope=unassigned-open",
       "myOwnedOpenTickets": "/staff-tickets?scope=my-owned-open",
       "myActiveActions": "/staff-tickets?scope=my-active-actions",
+      "myRecentlyCompletedActions": "/staff-tickets?scope=my-recently-completed-actions&asOf=2026-10-29T10%3A00%3A00.000Z",
       "urgentOpenTickets": "/staff-tickets?scope=urgent-open"
     },
     "adminAccountSummary": null
@@ -253,7 +255,7 @@ IT Staff/Admin only. Example metric groups:
 }
 ```
 
-For Administrator, `adminAccountSummary` may contain only aggregate active user counts by role. It is `null` for IT Staff. Existing staff list filters are extended to implement the documented drill-downs; Action drill-down opens a Ticket detail with the relevant Action selected or filtered, rather than pretending a Ticket-only query is an Action list.
+For Administrator, `adminAccountSummary` contains aggregate active-user counts by role only. It is `null` for IT Staff. Every dashboard array is bounded to five rows and uses a deterministic timestamp/id order. The existing Staff Ticket list accepts `scope=unassigned-open`, `scope=my-owned-open`, `scope=my-active-actions`, `scope=my-recently-completed-actions`, and `scope=urgent-open`, and intersects the scope with any supplied filters. The recent completed-Action scope also accepts the dashboard's `asOf` value as a canonical ISO-8601 UTC query parameter to preserve the exact interval. Action scopes return unique Ticket rows having at least one qualifying Action; the Ticket detail must select/filter the matching Action rather than duplicate a Ticket for each Action. The Action rows in the dashboard are ordered by `updatedAt DESC, id DESC` for active Actions and `actionAt DESC, id DESC` for completed Actions. `recentOrUrgentTickets` contains open Tickets updated in the recent interval or urgent open Tickets, ordered by `updatedAt DESC, id DESC`.
 
 ## 7. Validation limits and safe failures
 
