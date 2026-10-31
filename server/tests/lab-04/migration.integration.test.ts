@@ -17,7 +17,7 @@ type LegacySnapshot = {
   category: { id: number; name: string };
   system: { id: number; name: string };
   user: { id: number; name: string; email: string; passwordHash: string; role: string; isActive: boolean; mustChangePassword: boolean };
-  ticket: { id: number; ticketNumber: string; submissionKey: string; submissionHash: string; requesterId: number; categoryId: number; relatedSystemId: number; summary: string; description: string; requestedPriority: string };
+  ticket: { id: number; ticketNumber: string; submissionKey: string; submissionHash: string; requesterId: number; categoryId: number; relatedSystemId: number; summary: string; description: string; requestedPriority: string; currentStatus: string; requesterConfirmedResolved: boolean; requesterConfirmedResolvedAt: Date | null };
   attachment: { id: number; ticketId: number; originalName: string; storedName: string; mimeType: string; sizeBytes: number };
   publicComment: { id: number; ticketId: number; authorId: number; body: string };
   internalNote: { id: number; ticketId: number; authorId: number; body: string };
@@ -45,7 +45,7 @@ async function installLegacyFixture(client: PrismaClient): Promise<void> {
   await client.$executeRawUnsafe('INSERT INTO "Category" ("id", "name") VALUES (51, \'Legacy category\')');
   await client.$executeRawUnsafe('INSERT INTO "RelatedSystem" ("id", "name") VALUES (52, \'Legacy system\')');
   await client.$executeRawUnsafe(`INSERT INTO "User" ("id", "name", "email", "passwordHash", "role", "isActive", "mustChangePassword") VALUES (53, 'Legacy requester', 'legacy@example.test', 'legacy-password-hash', 'REQUESTER', true, false)`);
-  await client.$executeRawUnsafe(`INSERT INTO "Ticket" ("id", "ticketNumber", "submissionKey", "submissionHash", "requesterId", "categoryId", "relatedSystemId", "summary", "description", "requestedPriority") VALUES (54, 'LEGACY-54', 'legacy-submission', 'legacy-hash', 53, 51, 52, 'Legacy ticket', 'Keep this ticket and its ownership', 'HIGH')`);
+  await client.$executeRawUnsafe(`INSERT INTO "Ticket" ("id", "ticketNumber", "submissionKey", "submissionHash", "requesterId", "categoryId", "relatedSystemId", "summary", "description", "requestedPriority", "currentStatus", "requesterConfirmedResolved", "requesterConfirmedResolvedAt") VALUES (54, 'LEGACY-54', 'legacy-submission', 'legacy-hash', 53, 51, 52, 'Legacy ticket', 'Keep this ticket and its ownership', 'HIGH', 'RESOLVED', true, '2026-10-20T12:30:00.000Z')`);
   await client.$executeRawUnsafe(`INSERT INTO "Attachment" ("id", "ticketId", "originalName", "storedName", "mimeType", "sizeBytes") VALUES (55, 54, 'legacy.txt', 'legacy-fixture-55.txt', 'text/plain', 16)`);
   await client.$executeRawUnsafe(`INSERT INTO "PublicComment" ("id", "ticketId", "authorId", "body") VALUES (56, 54, 53, 'Legacy public comment')`);
   await client.$executeRawUnsafe(`INSERT INTO "InternalNote" ("id", "ticketId", "authorId", "body") VALUES (57, 54, 53, 'Legacy internal note')`);
@@ -55,7 +55,7 @@ async function captureLegacySnapshot(client: PrismaClient): Promise<LegacySnapsh
   const [category] = await client.$queryRawUnsafe<LegacySnapshot["category"][]>('SELECT "id", "name" FROM "Category" WHERE "id" = 51');
   const [system] = await client.$queryRawUnsafe<LegacySnapshot["system"][]>('SELECT "id", "name" FROM "RelatedSystem" WHERE "id" = 52');
   const [user] = await client.$queryRawUnsafe<LegacySnapshot["user"][]>('SELECT "id", "name", "email", "passwordHash", "role"::text AS "role", "isActive", "mustChangePassword" FROM "User" WHERE "id" = 53');
-  const [ticket] = await client.$queryRawUnsafe<LegacySnapshot["ticket"][]>('SELECT "id", "ticketNumber", "submissionKey", "submissionHash", "requesterId", "categoryId", "relatedSystemId", "summary", "description", "requestedPriority"::text AS "requestedPriority" FROM "Ticket" WHERE "id" = 54');
+  const [ticket] = await client.$queryRawUnsafe<LegacySnapshot["ticket"][]>('SELECT "id", "ticketNumber", "submissionKey", "submissionHash", "requesterId", "categoryId", "relatedSystemId", "summary", "description", "requestedPriority"::text AS "requestedPriority", "currentStatus"::text AS "currentStatus", "requesterConfirmedResolved", "requesterConfirmedResolvedAt" FROM "Ticket" WHERE "id" = 54');
   const [attachment] = await client.$queryRawUnsafe<LegacySnapshot["attachment"][]>('SELECT "id", "ticketId", "originalName", "storedName", "mimeType", "sizeBytes" FROM "Attachment" WHERE "id" = 55');
   const [publicComment] = await client.$queryRawUnsafe<LegacySnapshot["publicComment"][]>('SELECT "id", "ticketId", "authorId", "body" FROM "PublicComment" WHERE "id" = 56');
   const [internalNote] = await client.$queryRawUnsafe<LegacySnapshot["internalNote"][]>('SELECT "id", "ticketId", "authorId", "body" FROM "InternalNote" WHERE "id" = 57');
@@ -67,7 +67,7 @@ async function restoreLegacySnapshot(client: PrismaClient, snapshot: LegacySnaps
   await client.$executeRawUnsafe('INSERT INTO "Category" ("id", "name") VALUES ($1, $2)', snapshot.category.id, snapshot.category.name);
   await client.$executeRawUnsafe('INSERT INTO "RelatedSystem" ("id", "name") VALUES ($1, $2)', snapshot.system.id, snapshot.system.name);
   await client.$executeRawUnsafe('INSERT INTO "User" ("id", "name", "email", "passwordHash", "role", "isActive", "mustChangePassword") VALUES ($1, $2, $3, $4, $5::"Role", $6, $7)', snapshot.user.id, snapshot.user.name, snapshot.user.email, snapshot.user.passwordHash, snapshot.user.role, snapshot.user.isActive, snapshot.user.mustChangePassword);
-  await client.$executeRawUnsafe('INSERT INTO "Ticket" ("id", "ticketNumber", "submissionKey", "submissionHash", "requesterId", "categoryId", "relatedSystemId", "summary", "description", "requestedPriority") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::"RequestedPriority")', snapshot.ticket.id, snapshot.ticket.ticketNumber, snapshot.ticket.submissionKey, snapshot.ticket.submissionHash, snapshot.ticket.requesterId, snapshot.ticket.categoryId, snapshot.ticket.relatedSystemId, snapshot.ticket.summary, snapshot.ticket.description, snapshot.ticket.requestedPriority);
+  await client.$executeRawUnsafe('INSERT INTO "Ticket" ("id", "ticketNumber", "submissionKey", "submissionHash", "requesterId", "categoryId", "relatedSystemId", "summary", "description", "requestedPriority", "currentStatus", "requesterConfirmedResolved", "requesterConfirmedResolvedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::"RequestedPriority", $11::"TicketStatus", $12, $13)', snapshot.ticket.id, snapshot.ticket.ticketNumber, snapshot.ticket.submissionKey, snapshot.ticket.submissionHash, snapshot.ticket.requesterId, snapshot.ticket.categoryId, snapshot.ticket.relatedSystemId, snapshot.ticket.summary, snapshot.ticket.description, snapshot.ticket.requestedPriority, snapshot.ticket.currentStatus, snapshot.ticket.requesterConfirmedResolved, snapshot.ticket.requesterConfirmedResolvedAt);
   await client.$executeRawUnsafe('INSERT INTO "Attachment" ("id", "ticketId", "originalName", "storedName", "mimeType", "sizeBytes") VALUES ($1, $2, $3, $4, $5, $6)', snapshot.attachment.id, snapshot.attachment.ticketId, snapshot.attachment.originalName, snapshot.attachment.storedName, snapshot.attachment.mimeType, snapshot.attachment.sizeBytes);
   await client.$executeRawUnsafe('INSERT INTO "PublicComment" ("id", "ticketId", "authorId", "body") VALUES ($1, $2, $3, $4)', snapshot.publicComment.id, snapshot.publicComment.ticketId, snapshot.publicComment.authorId, snapshot.publicComment.body);
   await client.$executeRawUnsafe('INSERT INTO "InternalNote" ("id", "ticketId", "authorId", "body") VALUES ($1, $2, $3, $4)', snapshot.internalNote.id, snapshot.internalNote.ticketId, snapshot.internalNote.authorId, snapshot.internalNote.body);
@@ -80,7 +80,17 @@ async function expectPostMigrationIntegrity(client: PrismaClient, snapshot: Lega
     include: { attachments: true, publicComments: true, internalNotes: true, actions: true, workflowEvents: true },
   });
   expect(user).toMatchObject({ id: 53, email: "legacy@example.test", role: "REQUESTER", passwordHash: "legacy-password-hash", mustChangePassword: false });
-  expect(ticket).toMatchObject({ id: 54, requesterId: 53, categoryId: 51, relatedSystemId: 52, workflowVersion: 1, resolvedAt: null });
+  expect(ticket).toMatchObject({
+    id: 54,
+    requesterId: 53,
+    categoryId: 51,
+    relatedSystemId: 52,
+    currentStatus: "RESOLVED",
+    requesterConfirmedResolved: true,
+    requesterConfirmedResolvedAt: new Date("2026-10-20T12:30:00.000Z"),
+    workflowVersion: 1,
+    resolvedAt: null,
+  });
   expect(ticket.attachments).toEqual([expect.objectContaining({ id: 55, ticketId: 54, storedName: "legacy-fixture-55.txt", sizeBytes: 16 })]);
   expect(ticket.publicComments).toEqual([expect.objectContaining({ id: 56, authorId: 53, body: "Legacy public comment" })]);
   expect(ticket.internalNotes).toEqual([expect.objectContaining({ id: 57, authorId: 53, body: "Legacy internal note" })]);

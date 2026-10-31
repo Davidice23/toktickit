@@ -81,28 +81,48 @@ The schema and migration/seed/recovery suites passed in PR [#77 CI](https://gith
 
 ## Follow-ups recorded from PR #77 review
 
-These items were identified after the #70 implementation and remain visible for
-downstream work; no historical workflow identity or resolution time is
-fabricated.
+These items were identified after the #70 implementation. The learner approved
+the policy below for the resolution/history question; its code and assertions
+are implemented in the follow-up branch, but must not be reported as complete
+until the PR-head CI and peer review finish.
 
-**Proposed owner and sequencing:** carry these #77 findings in a separate
-`fix/70-data-foundation-followup` PR from `lab4-staging` back to
-`lab4-staging`, associated with Issue #70. This is a plan, not an existing PR
-or branch. Resolve the `resolvedAt`/legacy/seed-history decision and its tests
-before dashboard Issue #72; address or explicitly agree the constraints,
-seed event kind, FK/idempotency and migration-helper follow-ups before final
-hardening #73. The learner and reviewer must accept the actual decisions and
-CI evidence; PR #78 does not itself claim these items are fixed.
+**Owner and sequencing:** the follow-up is being prepared on
+`fix/70-data-foundation-followup`, based on the latest `lab4-staging`, for
+Issue #70 and a PR back to `lab4-staging`. Resolve the
+`resolvedAt`/legacy/seed-history decision and its tests before dashboard Issue
+#72; address or explicitly agree the constraints, seed event kind,
+FK/idempotency and migration-helper follow-ups before final hardening #73. The
+learner and reviewer must accept the actual decisions and CI evidence; PR #78
+does not itself claim these items are fixed.
 
-- Seeded `RESOLVED`/`CLOSED` Tickets currently have no `resolvedAt`, and the
-  seed does not create baseline `TicketWorkflowEvent` rows. Existing Lab 1-3
-  Tickets also start with `resolvedAt = NULL` and no workflow history. Before
-  #72, decide and document whether legacy resolved rows get an approximate
-  migration timestamp (`updatedAt`) or intentionally remain outside the
-  “recently resolved” metric; add explicit fixture and migration assertions.
+- **Approved policy — no legacy backfill; examples are seed-only.** Migration
+  leaves every pre-existing Lab 1-3 Ticket's `resolvedAt` as `NULL` and creates
+  no fabricated `TicketWorkflowEvent`, even if its current status is
+  `RESOLVED`/`CLOSED` or the Lab 3 requester-confirmation timestamp exists.
+  `updatedAt` and requester confirmation are not substitutes for an audited
+  staff resolution time. Such legacy Tickets remain outside the
+  “recently resolved” metric unless a real post-migration workflow event records
+  a resolution.
+- Deterministic `lab3-demo-*` fixture Tickets may carry synthetic example data:
+  seed supplies one baseline event with `previousStatus = NULL`, the current
+  fixture status, a `synthetic-seed:<key>:baseline` reason, and the seed-run
+  timestamp. For the synthetic `RESOLVED`/`CLOSED` examples only, the same
+  seed-run timestamp may populate a missing `resolvedAt`. Documentation and UI
+  examples must treat that as synthetic sample data, not a real historic
+  transition. Seed must preserve any existing `resolvedAt` or workflow history,
+  and must not reset a fixture whose status has moved away from its declared
+  example state. Ordinary/migrated Tickets are never selected by these stable
+  fixture keys.
+- The migration integration fixture now represents an already-resolved legacy
+  Ticket with the older requester-confirmation timestamp, then asserts that
+  upgrade and recovery preserve that advisory data while leaving
+  `resolvedAt = NULL` and workflow history empty. The seed integration test
+  asserts the synthetic-only baseline and repeat safety. These are tests to be
+  verified on the follow-up PR head, not yet CI evidence.
 - The seeded cancelled Action currently records its lifecycle event as
   `STATUS_CHANGED`; runtime API writes use `CANCELLED`. Normalize seed events
-  and assert matching event kinds before final evidence.
+  and assert matching event kinds before final evidence. This remains open and
+  is not part of the no-backfill policy change.
 - The migration does not currently have cross-field SQL `CHECK` constraints.
   Issue #66 enforces lifecycle invariants at the service boundary; direct SQL
   writers can still bypass them. Before release, either add a reviewed forward
@@ -112,3 +132,7 @@ CI evidence; PR #78 does not itself claim these items are fixed.
   migrations free of dollar-quoted blocks until the helper is replaced with a
   robust execution approach. Direct FK `RESTRICT` and scoped idempotency
   uniqueness assertions are still needed in the migration test suite.
+
+The approved no-backfill policy clears the resolution/history decision needed
+before dashboard Issue #72. It does not close the other hardening follow-ups;
+those must be resolved or explicitly accepted before final hardening #73.

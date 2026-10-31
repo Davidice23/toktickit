@@ -134,6 +134,9 @@ export const LAB4_ACTION_FIXTURES = [
 ] as const;
 
 export async function seedReferenceData(prisma: PrismaClient): Promise<void> {
+  // This timestamp labels the synthetic snapshot written below; it is not a
+  // claim about when a real Ticket was resolved or when a transition occurred.
+  const syntheticSnapshotAt = new Date();
   const initialPassword = process.env.LAB3_SEED_INITIAL_PASSWORD ?? "local-only-password";
   const passwordHash = await hashPassword(initialPassword);
   for (const name of CATEGORY_NAMES) {
@@ -208,17 +211,63 @@ export async function seedReferenceData(prisma: PrismaClient): Promise<void> {
         itPriority: fixture.requestedPriority,
         currentStatus: fixture.status,
       },
-      select: { id: true },
+      select: { id: true, currentStatus: true, resolvedAt: true },
     });
     ticketIds.set(fixture.key, ticket.id);
+
+    // Stable submission keys identify only the deterministic demo fixtures.
+    // Never infer historical data for an ordinary/migrated Ticket. Preserve
+    // any workflow history or resolution timestamp already written by the app.
+    if (ticket.currentStatus === fixture.status) {
+      const baselineReason = `synthetic-seed:${fixture.key}:baseline`;
+      const workflowEvents = await prisma.ticketWorkflowEvent.findMany({
+        where: { ticketId: ticket.id },
+        select: { reason: true },
+      });
+      const hasHistoryBeyondBaseline = workflowEvents.some((event) => event.reason !== baselineReason);
+      const hasBaseline = workflowEvents.some((event) => event.reason === baselineReason);
+      if (!hasBaseline && workflowEvents.length === 0) {
+        await prisma.ticketWorkflowEvent.create({
+          data: {
+            ticketId: ticket.id,
+            actorId: requiredId(userIds.get(OPERATIONAL_USERS[4].email), OPERATIONAL_USERS[4].email),
+            previousStatus: null,
+            currentStatus: ticket.currentStatus,
+            reason: baselineReason,
+            createdAt: syntheticSnapshotAt,
+          },
+        });
+      }
+
+      if (
+        !hasHistoryBeyondBaseline &&
+        (fixture.status === "RESOLVED" || fixture.status === "CLOSED") &&
+        ticket.resolvedAt === null
+      ) {
+        await prisma.ticket.update({
+          where: { id: ticket.id },
+          data: { resolvedAt: syntheticSnapshotAt },
+        });
+      }
+    }
   }
 
   for (const fixture of LAB3_MESSAGE_FIXTURES) {
     const ticketId = requiredId(ticketIds.get(fixture.ticketKey), fixture.ticketKey);
     const authorId = requiredId(userIds.get(fixture.authorEmail), fixture.authorEmail);
-    const model = fixture.kind === "public" ? prisma.publicComment : prisma.internalNote;
-    const existing = await model.findFirst({ where: { ticketId, authorId, body: fixture.body }, select: { id: true } });
-    if (!existing) await model.create({ data: { ticketId, authorId, body: fixture.body } });
+    if (fixture.kind === "public") {
+      const existing = await prisma.publicComment.findFirst({
+        where: { ticketId, authorId, body: fixture.body },
+        select: { id: true },
+      });
+      if (!existing) await prisma.publicComment.create({ data: { ticketId, authorId, body: fixture.body } });
+    } else {
+      const existing = await prisma.internalNote.findFirst({
+        where: { ticketId, authorId, body: fixture.body },
+        select: { id: true },
+      });
+      if (!existing) await prisma.internalNote.create({ data: { ticketId, authorId, body: fixture.body } });
+    }
   }
 
   const attachmentRoot = path.resolve(process.cwd(), "storage", "attachments");
