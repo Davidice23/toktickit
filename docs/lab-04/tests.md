@@ -218,6 +218,10 @@ The new `ticket-workflow.api.test.ts` includes a real backend 64-edge matrix for
 
 The #71 integration suite requires explicit `LAB4_DISPOSABLE_DB=1` as well as `NODE_ENV=test` and a local database named `toktickit_test`; it refuses to run without these guards. Set the opt-in only after verifying that the target is disposable. The Lab 3 and Lab 4 server CI jobs set it for their temporary PostgreSQL services. Teardown targets only the synthetic records created by this suite; these checks do not make other existing database tests safe for a shared database.
 
+#### PR #79 first-head CI failure and test-fixture repair (2026-10-31)
+
+Run [41217577108](https://github.com/Davidice23/toktickit/actions/runs/41217577108) on head `e3d58bc75c2dce62beedc1e4e81eb214ae282834` completed with Client and Browser jobs passing, but Server regression **101 passed / 4 failed of 105**; the explicit Lab 4 server step was skipped after that failure. Two tests created synthetic operational Users without the database-required password hash. Two assertions assumed an omitted `itPriority` defaulted to `null`, while the existing Lab 3 migration sets it to `LOW`. The log also emitted caught FK-delete failures for synthetic Tickets still referenced by PublicComment and Attachment. A focused follow-up adds password hashes to those synthetic users, compares stale/losing writes with the captured initial priority, and deletes only test-owned Attachment/PublicComment/InternalNote children before their parent Ticket. These changes are **not yet verified**; all tests and CI on the new head remain NOT RUN. Do not treat this repair as passing until a new exact-head run succeeds.
+
 ### 5.6 Exact-main release evidence
 
 After release, record the resolved `main` SHA, CI event URL, `head_sha`, all required job conclusions, command output totals, and whether any test was skipped/not run. A green PR merge-ref or staging run is not a substitute for the exact final-main run.

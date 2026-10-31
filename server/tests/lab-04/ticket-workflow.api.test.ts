@@ -2,6 +2,7 @@ import request from "supertest";
 import { randomUUID } from "node:crypto";
 import { TicketStatus } from "@prisma/client";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { hashPassword } from "../../src/auth.js";
 import { app } from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
 import { loginAsAdministrator, loginAsRequester, loginAsStaff } from "../lab-03/auth-fixtures.js";
@@ -210,7 +211,7 @@ describe.sequential("Lab 4 Ticket workflow API", () => {
   });
 
   it("rejects deactivation or demotion of an owner until protected Tickets are reassigned", async () => {
-    const user = await prisma.requesterUser.create({ data: { name: "Synthetic owner", email: `lab4-owner-${randomUUID()}@example.test`, role: "IT_STAFF", isActive: true } });
+    const user = await prisma.requesterUser.create({ data: { name: "Synthetic owner", email: `lab4-owner-${randomUUID()}@example.test`, passwordHash: await hashPassword(randomUUID()), role: "IT_STAFF", isActive: true } });
     syntheticUserIds.push(user.id);
     const ticket = await makeTicket("IN_PROGRESS", user.id);
     for (const patch of [{ isActive: false }, { role: "REQUESTER" }]) {
@@ -329,6 +330,7 @@ describe.sequential("Lab 4 Ticket workflow API", () => {
 
   it("serializes Ticket priority versus status with verified lock overlap", async () => {
     const ticket = await makeTicket("NEW", staff.userId);
+    const initialPriority = ticket.itPriority;
     const [status, priority] = await controlledRace("Ticket", ticket.id, () => [
       staff.agent.patch(`/api/staff/tickets/${ticket.id}/status`).set("X-CSRF-Token", staff.csrfToken)
         .send({ expectedTicketVersion: 1, status: "OPEN" }).then((response) => response),
@@ -339,11 +341,11 @@ describe.sequential("Lab 4 Ticket workflow API", () => {
     const updated = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
     expect(updated.workflowVersion).toBe(2);
     expect(updated.currentStatus).toBe(status.status === 200 ? "OPEN" : "NEW");
-    expect(updated.itPriority).toBe(priority.status === 200 ? "HIGH" : null);
+    expect(updated.itPriority).toBe(priority.status === 200 ? "HIGH" : initialPriority);
   }, 30000);
 
   it("prevents owner deactivation racing Resolve through a verified User lock", async () => {
-    const user = await prisma.requesterUser.create({ data: { name: "Race owner", email: `lab4-race-${randomUUID()}@example.test`, role: "IT_STAFF", isActive: true } });
+    const user = await prisma.requesterUser.create({ data: { name: "Race owner", email: `lab4-race-${randomUUID()}@example.test`, passwordHash: await hashPassword(randomUUID()), role: "IT_STAFF", isActive: true } });
     syntheticUserIds.push(user.id);
     const ticket = await makeTicket("IN_PROGRESS", user.id);
     await makeAction(ticket.id, "COMPLETED", "Verified work");
@@ -361,12 +363,13 @@ describe.sequential("Lab 4 Ticket workflow API", () => {
 
   it("rejects stale updates without overwriting the current owner, priority, or status", async () => {
     const ticket = await makeTicket("NEW", null);
+    const initialPriority = ticket.itPriority;
     const claim = await staff.agent.post(`/api/staff/tickets/${ticket.id}/claim`).set("X-CSRF-Token", staff.csrfToken).send({ expectedTicketVersion: 1 });
     expect(claim.status).toBe(200);
     const stale = await admin.agent.patch(`/api/staff/tickets/${ticket.id}/priority`).set("X-CSRF-Token", admin.csrfToken).send({ expectedTicketVersion: 1, itPriority: "URGENT" });
     expect(stale.status).toBe(409);
     expect(stale.body.error.code).toBe("STALE_VERSION");
     const persisted = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
-    expect(persisted).toMatchObject({ ownerId: staff.userId, workflowVersion: 2, itPriority: null, currentStatus: "NEW" });
+    expect(persisted).toMatchObject({ ownerId: staff.userId, workflowVersion: 2, itPriority: initialPriority, currentStatus: "NEW" });
   });
 });

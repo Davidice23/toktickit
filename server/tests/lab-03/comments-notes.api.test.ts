@@ -19,7 +19,12 @@ beforeAll(async () => {
   fixture = await loginAsRequester(requesterId);
 });
 
-afterAll(async () => { await prisma.ticket.delete({ where: { id: ticketId } }).catch(() => undefined); await prisma.$disconnect(); });
+afterAll(async () => {
+  await prisma.publicComment.deleteMany({ where: { ticketId } });
+  await prisma.internalNote.deleteMany({ where: { ticketId } });
+  await prisma.ticket.delete({ where: { id: ticketId } }).catch(() => undefined);
+  await prisma.$disconnect();
+});
 
 describe.sequential("Lab 3 Public Comment and requester resolution contract", () => {
   it("creates and reads an owned Public Comment in oldest-first order", async () => {
