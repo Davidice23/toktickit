@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import type { SuperAgentTest } from "supertest";
+import { unlink } from "node:fs/promises";
+import path from "node:path";
 import { getPrisma } from "../../src/prisma.js";
 import { loginAsRequester } from "../lab-03/auth-fixtures.js";
 
@@ -8,7 +9,7 @@ const prisma = getPrisma();
 let ownerId: number;
 let ticketId: number;
 let attachmentId: number;
-let agent: SuperAgentTest;
+let agent: Awaited<ReturnType<typeof loginAsRequester>>["agent"];
 let csrfToken = "";
 
 beforeAll(async () => {
@@ -23,7 +24,13 @@ beforeAll(async () => {
   csrfToken = fixture.csrfToken;
 });
 
-afterAll(async () => { await prisma.ticket.delete({ where: { id: ticketId } }).catch(() => undefined); await prisma.$disconnect(); });
+afterAll(async () => {
+  const attachments = await prisma.attachment.findMany({ where: { ticketId }, select: { id: true, storedName: true } });
+  for (const attachment of attachments) await unlink(path.resolve(process.cwd(), "storage", "attachments", attachment.storedName)).catch(() => undefined);
+  await prisma.attachment.deleteMany({ where: { ticketId } });
+  await prisma.ticket.delete({ where: { id: ticketId } }).catch(() => undefined);
+  await prisma.$disconnect();
+});
 
 describe("Attachment lifecycle", () => {
   it("uploads, downloads, and soft-removes an owned attachment", async () => {

@@ -119,7 +119,7 @@ For an owned Ticket that does not exist, the requester API returns the same safe
 | `CANCELLED` | `REOPENED` | Reopen requires a reason. |
 
 - **BR-13:** Only IT Staff or Administrator performs formal Ticket status changes.
-- **BR-14:** `IN_PROGRESS`, `RESOLVED`, and `CLOSED` require an active operational Ticket Owner. A non-null but inactive owner is not sufficient.
+- **BR-14 (proposed #71 amendment):** Entering `IN_PROGRESS`, `RESOLVED`, or `CLOSED` requires an active operational Ticket Owner. Only a Ticket currently in `IN_PROGRESS` blocks that owner's deactivation or demotion; `RESOLVED` and `CLOSED` retain the owner as historical attribution and do not permanently block account changes. If that owner is later inactive or non-operational, reassign the Ticket to an active operational owner before a transition into `IN_PROGRESS`, `RESOLVED`, or `CLOSED`.
 - **BR-15:** The resolution gate for `RESOLVED` requires: (a) an active operational Ticket Owner; (b) at least one completed Action with a non-blank Result; and (c) no Action on the Ticket in `PLANNED` or `IN_PROGRESS`. The Requester's advisory confirmation is not a prerequisite.
 - **BR-16:** Ticket cancellation and reopening require a non-blank reason; closure requires explicit confirmation. The reason and prior/new status enter the append-only Ticket workflow history.
 - **BR-17:** Ticket list and Action history ordering is deterministic. Ticket recency uses `updatedAt DESC, id DESC`; Action workflow history uses `createdAt ASC, id ASC`; completed-work display uses `actionAt DESC, id DESC` when appropriate.

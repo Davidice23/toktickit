@@ -66,10 +66,10 @@ describe.sequential("Lab 3 Staff Queue API", () => {
   });
 
   it("atomically claims once and reports a claim conflict", async () => {
-    const claimed = await staffFixture.agent.post("/api/staff/tickets/" + ticketId + "/claim").set("X-CSRF-Token", staffFixture.csrfToken).send({});
+    const claimed = await staffFixture.agent.post("/api/staff/tickets/" + ticketId + "/claim").set("X-CSRF-Token", staffFixture.csrfToken).send({ expectedTicketVersion: 1 });
     expect(claimed.status).toBe(200);
     expect(claimed.body.data.owner.id).toBe(staffFixture.userId);
-    const conflict = await secondStaffFixture.agent.post("/api/staff/tickets/" + ticketId + "/claim").set("X-CSRF-Token", secondStaffFixture.csrfToken).send({});
+    const conflict = await secondStaffFixture.agent.post("/api/staff/tickets/" + ticketId + "/claim").set("X-CSRF-Token", secondStaffFixture.csrfToken).send({ expectedTicketVersion: 2 });
     expect(conflict.status).toBe(409);
     expect(conflict.body.error.code).toBe("CLAIM_CONFLICT");
   });
