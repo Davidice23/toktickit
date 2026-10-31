@@ -1,6 +1,6 @@
 # Lab 4 Engineering Contract: Actions Taken, Dashboards, and Final Regression
 
-> **Status: Draft for learner review and peer review.** This document is the proposed Sprint 4 contract for Issue #64. It is not approved until the learner confirms the marked decisions and a human peer reviewer approves the Contract PR. No Lab 4 runtime, Prisma, or database change is authorized by this draft alone.
+> **Status: Approved implementation baseline (PR #75).** The learner authorized this Contract for review and Sxr1n approved its four documents in PR #75 at head `24d3add`. Any substantive behavior change must update the Contract and receive learner and peer review before dependent implementation proceeds.
 
 ## 1. Sprint goal
 
@@ -215,13 +215,13 @@ Course delivery is separately complete only when all Lab 4 Issues are represente
 
 | Decision | Status before review | Choice / rationale |
 | --- | --- | --- |
-| D-01 | Proposed | Action lifecycle is planned/in-progress/completed/cancelled; terminal records are retained rather than hard-deleted. |
-| D-02 | Proposed | Action assignee and performer are distinct; performer is automatically set at completion. |
-| D-03 | Proposed | Ticket resolution requires active owner, one completed Action with Result, and no active Action. Requester advisory is not required. |
-| D-04 | Proposed | Parent Ticket workflow version coordinates Action/Ticket writes; Action has its own version for edit conflict feedback. |
-| D-05 | Proposed | UTC storage, Asia/Bangkok presentation, 14-day recent windows, and `[start,end)` boundaries are used for dashboards. |
-| D-06 | Proposed | Dashboard rows are bounded, ordered server-side, and drill into filtered existing detailed views. |
-| D-07 | Proposed | Admin sees the Staff dashboard plus optional active account totals, not a separate broad analytics product. |
-| D-08 | Proposed | Historical review/Contract screenshots may cite their original commit; final-product screenshots/tests/CI must cite final main. |
+| D-01 | Approved in PR #75 | Action lifecycle is planned/in-progress/completed/cancelled; terminal records are retained rather than hard-deleted. |
+| D-02 | Approved in PR #75 | Action assignee and performer are distinct; performer is automatically set at completion. |
+| D-03 | Approved in PR #75 | Ticket resolution requires active owner, one completed Action with Result, and no active Action. Requester advisory is not required. |
+| D-04 | Approved in PR #75 | Parent Ticket workflow version coordinates Action/Ticket writes; Action has its own version for edit conflict feedback. |
+| D-05 | Approved in PR #75 | UTC storage, Asia/Bangkok presentation, 14-day recent windows, and `[start,end)` boundaries are used for dashboards. |
+| D-06 | Approved in PR #75 | Dashboard rows are bounded, ordered server-side, and drill into filtered existing detailed views. |
+| D-07 | Approved in PR #75 | Admin sees the Staff dashboard plus optional active account totals, not a separate broad analytics product. |
+| D-08 | Approved in PR #75 | Historical review/Contract screenshots may cite their original commit; final-product screenshots/tests/CI must cite final main. |
 
-The learner must accept or revise each proposed decision before the Contract is submitted for peer review. A later behavior change updates this Contract, traceability, and tests and requires review on the changed commit.
+The learner and peer approved these baseline decisions in PR #75. A later behavior change updates this Contract, traceability, and tests and requires review on the changed commit.

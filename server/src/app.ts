@@ -3,6 +3,7 @@ import cors from "cors";
 import { createHash, randomUUID } from "node:crypto";
 import { ITPriority, RequestedPriority, TicketStatus } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
+import { lab4ActionsRouter } from "./lab4-actions.js";
 import multer from "multer";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -936,4 +937,6 @@ app.post("/api/admin/users/:userId/initial-password", requireSession, requireNor
     return res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to reset initial password", undefined, correlationId));
   }
 });
+
+app.use(lab4ActionsRouter);
 export default app;

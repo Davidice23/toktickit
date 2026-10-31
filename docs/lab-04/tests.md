@@ -1,6 +1,6 @@
 # Lab 4 Test-Driven Delivery Plan and Traceability
 
-> **Status: Draft planned test design for Issue #64.** `PLANNED` means a test has not yet been created or run. This document must be updated with actual commands, paths, pass/fail/skipped totals, environment, CI URL, and commit SHA as work proceeds. A path in this plan is not evidence that the file exists today.
+> **Status: Approved Contract test plan (PR #75), updated with implementation evidence.** `PLANNED` means a test has not yet been created or run. This document must be updated with actual commands, paths, pass/fail/skipped totals, environment, CI URL, and commit SHA as work proceeds. A path in this plan is not evidence that the file exists today.
 
 ## 1. Test strategy and evidence rules
 
@@ -31,25 +31,28 @@ Tests run only against a disposable/local test database or isolated schema expli
 
 | Test ID | Type / AC | What it proves | Expected result | Planned path | Final |
 | --- | --- | --- | --- | --- | --- |
-| MIG-01 | Migration / AC-18 | Fresh Prisma migration creates Action, Action Event, Ticket Workflow Event, versions, relations, and required indexes | Schema validates and fresh migration deploys | `server/tests/lab-04/migration.integration.test.ts` | IMPLEMENTED — pending first disposable-DB CI run |
-| MIG-02 | Upgrade / AC-18 | Lab 1-3 User, Ticket, Attachment, Public Comment, Internal Note IDs/FKs/ownership survive Lab 3-to-4 upgrade | Before/after oracle matches; legacy Ticket with zero Actions is readable | `server/tests/lab-04/migration.integration.test.ts` | IMPLEMENTED — pending first disposable-DB CI run |
-| MIG-03 | Recovery / AC-18 | A verified pre-migration disposable snapshot can be restored and passes integrity checks | Restore/recheck succeeds without destructive reset | `server/tests/lab-04/migration.integration.test.ts` | IMPLEMENTED — pending first disposable-DB CI run |
-| SEED-01 | Integration / AC-18 | Lab 4 seed is repeat-safe | Two runs create no duplicate fixtures/foreign-key breakage | `server/tests/lab-04/seed.integration.test.ts` | IMPLEMENTED — pending first disposable-DB CI run |
-| SEED-02 | Integration / AC-02,13,18 | Seed includes zero/one/multiple Actions, all key statuses/priorities, assigned/unassigned, active/inactive staff, zero/non-zero dashboard cases | Fixture oracle is explicit and stable | `server/tests/lab-04/seed.integration.test.ts` | IMPLEMENTED — pending first disposable-DB CI run |
+| MIG-01 | Migration / AC-18 | Fresh Prisma migration creates Action, Action Event, Ticket Workflow Event, versions, relations, and required indexes | Schema validates and fresh migration deploys | `server/tests/lab-04/migration.integration.test.ts` | PASS — PR #77 CI, head `503e3af`, disposable PostgreSQL |
+| MIG-02 | Upgrade / AC-18 | Lab 1-3 User, Ticket, Attachment, Public Comment, Internal Note IDs/FKs/ownership survive Lab 3-to-4 upgrade | Before/after oracle matches; legacy Ticket with zero Actions is readable | `server/tests/lab-04/migration.integration.test.ts` | PASS — PR #77 CI, head `503e3af`, disposable PostgreSQL |
+| MIG-03 | Recovery / AC-18 | A verified pre-migration disposable snapshot can be restored and passes integrity checks | Restore/recheck succeeds without destructive reset | `server/tests/lab-04/migration.integration.test.ts` | PASS — PR #77 CI, head `503e3af`, disposable PostgreSQL |
+| SEED-01 | Integration / AC-18 | Lab 4 seed is repeat-safe | Two runs create no duplicate fixtures/foreign-key breakage | `server/tests/lab-04/seed.integration.test.ts` | PASS — PR #77 CI, head `503e3af`, disposable PostgreSQL |
+| SEED-02 | Integration / AC-02,13,18 | Seed includes zero/one/multiple Actions, all key statuses/priorities, assigned/unassigned, active/inactive staff, zero/non-zero dashboard cases | Fixture oracle is explicit and stable | `server/tests/lab-04/seed.integration.test.ts` | PASS — PR #77 CI, head `503e3af`, disposable PostgreSQL |
 
 ### 3.2 Actions Taken API and authorization
 
 | Test ID | Type / AC | What it proves | Expected result | Planned path | Final |
 | --- | --- | --- | --- | --- | --- |
-| API-01 | API / AC-01 | Staff creates valid Action under correct Ticket | `201`; correct Ticket; created actor/session-derived audit; planned state | `server/tests/lab-04/actions-taken.api.test.ts` | PLANNED |
-| API-02 | API / AC-02 | Inactive/non-staff assignee is rejected | Field error; no Action/event/version mutation | `server/tests/lab-04/actions-taken.api.test.ts` | PLANNED |
-| API-03 | API / AC-03 | Ticket Owner and Action assignee may differ | Valid creation/update succeeds with both links correct | `server/tests/lab-04/actions-taken.api.test.ts` | PLANNED |
-| API-04 | API / AC-05 | Blank/too-long description, required follow-up note, missing Result, and missing cancel reason | Deterministic validation fields; persisted state unchanged | `server/tests/lab-04/actions-taken.api.test.ts` | PLANNED |
-| API-05 | API / AC-06 | Requester A reads all safe Actions for own Ticket; Requester B cannot read/mutate; requester cannot call staff route | Safe list/404/403 according to Contract; no mutation | `server/tests/lab-04/actions-taken.api.test.ts` | PLANNED |
-| API-06 | API / AC-07 | Same idempotency key + normalized payload is safe; changed payload conflicts | One record/event only; replay is stable; changed replay is `409` | `server/tests/lab-04/actions-taken.api.test.ts` | PLANNED |
-| API-07 | API / AC-04,06 | Nested action ID from another Ticket, spoofed actor/version/timestamp fields, terminal edit, and unknown enum | Safe 404/400/409; no cross-ticket mutation | `server/tests/lab-04/actions-taken.api.test.ts` | PLANNED |
-| API-08 | API / AC-08 | Lifecycle edits/transitions append Action events in deterministic order | Current snapshot and immutable history match expected actor/status | `server/tests/lab-04/actions-taken.api.test.ts` | PLANNED |
-| API-09 | API / AC-04,11 | Concurrent/stale Action update and Ticket version conflict | One accepted or serially safe result; stale request 409; no lost data | `server/tests/lab-04/actions-taken.api.test.ts` | PLANNED |
+| API-01 | API / AC-01 | Staff creates valid Action under correct Ticket | `201`; correct Ticket; created actor/session-derived audit; planned state | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — build/type-check pass; waiting PR CI |
+| API-02 | API / AC-02 | Inactive/non-staff assignee is rejected | Field error; no Action/event/version mutation | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — build/type-check pass; waiting PR CI |
+| API-03 | API / AC-03 | Ticket Owner and Action assignee may differ | Valid creation/update succeeds with both links correct | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — build/type-check pass; waiting PR CI |
+| API-04 | API / AC-05 | Blank/too-long description, required follow-up note, missing Result, and missing cancel reason | Deterministic validation fields; persisted state unchanged | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — build/type-check pass; waiting PR CI |
+| API-05 | API / AC-06 | Requester A reads safe Actions for own Ticket, including beyond page 100; Requester B cannot read/mutate; requester actor data excludes role/activity | Safe list/404/403 according to Contract; no mutation | `server/tests/lab-04/actions-taken.api.test.ts` | Prior behavior passed PR #78 CI at `b863ac0`; new requester projection awaits CI |
+| API-06 | API / AC-07 | Same key/payload after an edit returns original receipt; changed payload or unavailable legacy receipt conflicts | Original JSON response, one record; deterministic `409` for mismatch/missing receipt | `server/tests/lab-04/actions-taken.api.test.ts` | Passed PR #78 CI at `b863ac0`; changes to normalization require new-head CI |
+| API-07 | API / AC-04,06 | Nested action ID from another Ticket, spoofed actor/version/timestamp fields, terminal edit, and unknown enum | Safe 404/400/409; no cross-ticket mutation | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — build/type-check pass; waiting PR CI |
+| API-08 | API / AC-08 | Lifecycle edits/transitions append Action events in deterministic order | Current snapshot and immutable history match expected actor/status | `server/tests/lab-04/actions-taken.api.test.ts` | IMPLEMENTED — build/type-check pass; waiting PR CI |
+| API-09 | API / AC-04,11 | Concurrent Action creates and stale Action/Ticket versions | One accepted create; the stale request returns `409`; one Action/event persists | `server/tests/lab-04/actions-taken.api.test.ts` | PARTIAL — `Promise.all` does not establish controlled transaction overlap; database execution remains pending |
+| API-10 | API / AC-08 | Staff history combines Action and Ticket events with deterministic ordering, consistent response shape, and beyond-page-100 access | Staff/Admin can read; Requester receives `403`; no Internal Note content | `server/tests/lab-04/actions-taken.api.test.ts` | Prior history passed PR #78 CI at `b863ac0`; new SQL and mixed-source tests await CI |
+| API-11 | Unit / AC-05–07 | Non-object/incorrect note types, pagination bounds, replay and missing receipt | Safe errors and replay logic without database access | `server/tests/lab-04/actions-validation.unit.test.ts` | PASS locally — 21 mocked-auth/database-isolated tests; new-head PR CI pending |
+| API-12 | API / AC-05,08 | Follow-up false prevents nonempty note in create/edit/completion; blank attachment normalizes consistently | `400` for incompatible notes; no stale version/event writes; blank attachment is `null` | `server/tests/lab-04/actions-taken.api.test.ts` | New integration test awaiting disposable-DB CI; negative cases passed in mocked unit tests |
 
 ### 3.3 Ticket workflow and concurrency
 
@@ -107,7 +110,7 @@ Tests run only against a disposable/local test database or isolated schema expli
 | AC-05 | API-04, E2E-01, UI-A-01 |
 | AC-06 | API-05, E2E-01, UI-A-01 |
 | AC-07 | API-06, E2E-01 |
-| AC-08 | API-08, WF-06, E2E-01 |
+| AC-08 | API-08, API-10, WF-06, E2E-01 |
 | AC-09 | WF-01, UI-W-01, E2E-02 |
 | AC-10 | WF-02, WF-03, UI-W-01, E2E-02 |
 | AC-11 | API-09, WF-04, WF-05 |
@@ -160,7 +163,7 @@ Issue #65 supplies only executable foundation smoke coverage for behavior that e
 - Client: signed-out rendering after the current-session probe is denied.
 - Browser: sign-in page plus protected-API rejection, then a seeded requester sign-in, navigation to My Tickets, and sign-out.
 
-The Actions Taken, workflow, dashboard, migration, concurrency, and accessibility feature tests listed above remain `PLANNED` until their owning implementation issues add real coverage. No skipped/todo/placeholder assertion is a Lab 4 pass claim.
+Ticket workflow, dashboards, and accessibility remain `PLANNED` until their owning implementation issues add real coverage. The initial Action API suite ran on disposable PostgreSQL in PR #78 CI at head `b863ac0`; reviewer-feedback changes need a new run. Migration/seed/recovery checks also passed on PR #77 head `503e3af`. No skipped/todo/placeholder assertion is a Lab 4 pass claim.
 
 Before any E2E run, the harness prepares an isolated CI PostgreSQL service through the current migration/seed path, starts the API with explicit test environment variables, waits for `/api/health`, runs the client via Playwright, and collects trace/screenshots/report. The dedicated Lab 4 workflow is limited to `pull_request` and `push` on `lab4-staging` and `main`, uses only `contents: read`, and does not use `pull_request_target`.
 
@@ -178,7 +181,34 @@ Before any E2E run, the harness prepares an isolated CI PostgreSQL service throu
 
 This record is pre-commit local evidence, not a CI result. The PR must record the head SHA and actual workflow URL/conclusions before the foundation gate is considered complete.
 
-### 5.4 Exact-main release evidence
+### 5.4 Issue #70 disposable-database CI record
+
+PR [#77](https://github.com/Davidice23/toktickit/pull/77) was merged at `be1b800`; run [40923264624](https://github.com/Davidice23/toktickit/actions/runs/40923264624) completed on head `503e3af` with server regression/migration/seed, client, and browser/E2E jobs successful. This proves the submitted tests on that exact head; it does not resolve the seed/history and migration-test robustness follow-ups listed in `data-foundation.md`.
+
+### 5.5 Issue #66 local verification record (2026-10-30, before PR)
+
+| Command | Result | Evidence / limitation |
+| --- | --- | --- |
+| `npm run build` (from `server`) | PASS | TypeScript production build completed after the Actions API implementation. |
+| `npx tsc --noEmit --target ES2022 --module ES2022 --moduleResolution bundler --esModuleInterop --strict --skipLibCheck --types node tests/lab-04/actions-taken.api.test.ts` (from `server`) | PASS | Standalone strict TypeScript check of the database-backed Action API integration test. |
+| `git diff --check` | PASS | No whitespace errors; Git emitted only a line-ending normalization warning for `docs/lab-04/data-foundation.md`. |
+| `npm run test:lab4` / full server regression | NOT RUN locally | The Action API tests require a disposable `toktickit_test` PostgreSQL database. No local database was selected or touched; run them in the PR workflow's disposable PostgreSQL service and record the exact PR head/run before calling them passed. |
+
+These local checks are not integration-test evidence. The feature PR remains pending until all PR-head CI jobs finish and any failures are resolved.
+
+#### Follow-up local validation check (2026-10-30, pre-commit)
+
+`npx vitest run tests/lab-04/actions-validation.unit.test.ts`: **7 passed** after the validation fix, using mocked authorization and a database stub that fails if accessed. Before the fix, the same seven cases failed: three timed out on non-object JSON bodies and four returned `500` after reaching the database stub instead of `400`. An initial sandbox run failed with loopback `EACCES`; the red/green runs used the approved external sandbox environment for Supertest's temporary loopback ports. The server build and strict TypeScript checks of both Action test files passed after the change. No real database was used. This does not replace API integration, authorization, or concurrency tests.
+
+At the time of that pre-commit check, four mocked tests were added and the same command reported **11 passed**. `prisma generate`, `prisma validate` with a non-connected placeholder URL, server build, and strict TypeScript checks passed locally; no local database was started, migrated, or modified. The initial history endpoint had a 100-page cap at that point; reviewer-feedback changes subsequently remove it, pending new-head database CI. Controlled-overlap concurrency proof remains outstanding.
+
+#### PR #78 initial CI failure (2026-10-31)
+
+Run [41188287774](https://github.com/Davidice23/toktickit/actions/runs/41188287774) on head `b08c5bd` used disposable PostgreSQL: migration deploy, seed, build, migration/recovery test, and 11 mocked validation tests passed; full server regression reported **66 passed / 1 failed**. The Action edit/reassignment test expected `ASSIGNED` before `EDITED`, while both changes belong to one atomic operation and the Contract requires ordering by `createdAt` then `id`, not a field-type priority. The test was revised to assert each audit field, old/new value and actor, plus ordered history IDs. This revision requires a new exact-head CI run; the initial failure is not reported as a pass. Client and browser jobs passed on `b08c5bd`. The separately invoked server Lab 4 suite was skipped after the regression failure.
+
+The subsequent PR #78 run [41188839850](https://github.com/Davidice23/toktickit/actions/runs/41188839850) passed all three jobs at head `b863ac0`: server regression **67/67** and focused Lab 4 server suite **24/24**, plus client and browser jobs. These counts apply to that head, not to later reviewer-feedback changes. For the pre-commit feedback revision, **21 mocked unit tests** and local build/type-check passed. Five new validation cases failed before the change and passed afterwards; legacy-note protection and SQL-shape tests were added afterwards. The new real PostgreSQL history query, isolation behavior, and integration cases require new-head CI.
+
+### 5.6 Exact-main release evidence
 
 After release, record the resolved `main` SHA, CI event URL, `head_sha`, all required job conclusions, command output totals, and whether any test was skipped/not run. A green PR merge-ref or staging run is not a substitute for the exact final-main run.
 

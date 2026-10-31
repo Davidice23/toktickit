@@ -10,6 +10,7 @@ const migrations = [
   "20260905083000_lab2_data_model",
   "20260917090000_lab3_auth_foundation",
   "20261030003000_lab4_actions_data_foundation",
+  "20261030020000_lab4_action_create_receipts",
 ] as const;
 
 type LegacySnapshot = {
@@ -113,14 +114,25 @@ describe.sequential("Lab 4 additive migration and recovery", () => {
       const snapshot = await captureLegacySnapshot(source);
       await applyMigration(source, migrations[3]);
       await expectPostMigrationIntegrity(source, snapshot, attachmentPath);
+      // A pre-receipt Action survives the additive migration without a fabricated response.
+      const priorAction = await source.actionTaken.create({ data: {
+        ticketId: 54, assigneeId: 53, createdById: 53, description: "Historical migration fixture",
+        idempotencyKey: "legacy-action-key", requestFingerprint: "legacy-action-fingerprint",
+      }, select: { id: true, description: true } });
+      await applyMigration(source, migrations[4]);
+      const preserved = await source.actionTaken.findUniqueOrThrow({ where: { id: priorAction.id }, include: { createReceipt: true } });
+      expect(preserved).toMatchObject({ id: priorAction.id, description: priorAction.description, createReceipt: null });
 
       for (const migration of migrations.slice(0, 3)) await applyMigration(recovery, migration);
       await restoreLegacySnapshot(recovery, snapshot);
       await applyMigration(recovery, migrations[3]);
       await expectPostMigrationIntegrity(recovery, snapshot, attachmentPath);
+      await applyMigration(recovery, migrations[4]);
+      expect(await recovery.actionCreateReceipt.count()).toBe(0);
 
       for (const migration of migrations) await applyMigration(fresh, migration);
       expect(await fresh.actionTaken.count()).toBe(0);
+      expect(await fresh.actionCreateReceipt.count()).toBe(0);
       expect(await fresh.actionTakenEvent.count()).toBe(0);
       expect(await fresh.ticketWorkflowEvent.count()).toBe(0);
       const indexes = await fresh.$queryRawUnsafe<Array<{ indexname: string }>>("SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()");
