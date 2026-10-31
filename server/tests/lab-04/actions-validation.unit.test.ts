@@ -63,27 +63,106 @@ describe("Lab 4 Action input validation without a database", () => {
     expect(response.status).toBe(400);
     expect(response.body.error.fields[field]).toBeTruthy();
   });
+
+  it("rejects a follow-up note on creation when follow-up is disabled", async () => {
+    const response = await request(app).post("/api/staff/tickets/1/actions").set("Idempotency-Key", "test-key")
+      .send({ expectedTicketVersion: 1, assigneeId: 1, description: "A valid action", followUpRequired: false, followUpNote: "Unexpected note" });
+    expect(response.status).toBe(400);
+    expect(response.body.error.fields.followUpNote).toBeTruthy();
+  });
+
+  it.each(["post", "patch"] as const)("rejects a blank follow-up note consistently on %s", async (method) => {
+    const path = method === "post" ? "/api/staff/tickets/1/actions" : "/api/staff/tickets/1/actions/2";
+    const body = method === "post"
+      ? { expectedTicketVersion: 1, assigneeId: 1, description: "A valid action", followUpNote: " " }
+      : { expectedTicketVersion: 1, expectedActionVersion: 1, followUpNote: " " };
+    const response = await request(app)[method](path).set("Idempotency-Key", "test-key").send(body);
+    expect(response.status).toBe(400);
+    expect(response.body.error.fields.followUpNote).toBeTruthy();
+    expect(fixtures.getPrisma).not.toHaveBeenCalled();
+  });
+
+  it.each(["", "   "])("normalizes blank create attachment notes (%j) to null", async (attachmentNotes) => {
+    const create = vi.fn().mockResolvedValue({ id: 2 });
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValueOnce([{ id: 1, requesterId: 1, workflowVersion: 1, currentStatus: "OPEN" }]).mockResolvedValueOnce([{ id: 1 }]).mockResolvedValueOnce([{ id: 1 }]),
+      actionTaken: { findUnique: vi.fn().mockResolvedValue(null), create, findUniqueOrThrow: vi.fn().mockResolvedValue({ id: 2, attachmentNotes: null }) },
+      ticket: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      actionCreateReceipt: { create: vi.fn() },
+    };
+    fixtures.getPrisma.mockReturnValue({ $transaction: async (fn: (value: unknown) => Promise<unknown>) => fn(tx) });
+    const response = await request(app).post("/api/staff/tickets/1/actions").set("Idempotency-Key", "test-key")
+      .send({ expectedTicketVersion: 1, assigneeId: 1, description: "A valid action", attachmentNotes });
+    expect(response.status).toBe(201);
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ attachmentNotes: null }) }));
+  });
+
+  it.each(["/api/staff/tickets/1/actions/2", "/api/staff/tickets/1/actions/2/status"])("rejects adding a note when stored follow-up is disabled on %s", async (path) => {
+    const update = vi.fn();
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValueOnce([{ id: 1, requesterId: 1, workflowVersion: 1, currentStatus: "OPEN" }]).mockResolvedValueOnce([{ id: 1 }]),
+      actionTaken: { findFirst: vi.fn().mockResolvedValue({ id: 2, status: "PLANNED", version: 1, followUpRequired: false, followUpNote: null, assignee: { id: 1 } }), update },
+    };
+    fixtures.getPrisma.mockReturnValue({ $transaction: async (fn: (value: unknown) => Promise<unknown>) => fn(tx) });
+    const statusFields = path.endsWith("/status") ? { status: "COMPLETED", result: "Done" } : {};
+    const response = await request(app).patch(path).send({ expectedTicketVersion: 1, expectedActionVersion: 1, followUpNote: "Unexpected note", ...statusFields });
+    expect(response.status).toBe(400);
+    expect(response.body.error.fields.followUpNote).toBeTruthy();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it.each(["/api/staff/tickets/1/actions/2", "/api/staff/tickets/1/actions/2/status"])("does not silently erase an inconsistent legacy note on %s", async (path) => {
+    const update = vi.fn();
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValueOnce([{ id: 1, requesterId: 1, workflowVersion: 1, currentStatus: "OPEN" }]).mockResolvedValueOnce([{ id: 1 }]),
+      actionTaken: { findFirst: vi.fn().mockResolvedValue({ id: 2, status: "PLANNED", version: 1, description: "Original", followUpRequired: false, followUpNote: "Legacy note", assignee: { id: 1 } }), update },
+    };
+    fixtures.getPrisma.mockReturnValue({ $transaction: async (fn: (value: unknown) => Promise<unknown>) => fn(tx) });
+    const changed = path.endsWith("/status") ? { status: "COMPLETED", result: "Done" } : { description: "New description" };
+    const response = await request(app).patch(path).send({ expectedTicketVersion: 1, expectedActionVersion: 1, ...changed });
+    expect(response.status).toBe(400);
+    expect(response.body.error.fields.followUpNote).toBeTruthy();
+    expect(update).not.toHaveBeenCalled();
+  });
 });
 
 describe("Lab 4 pagination and idempotency without a database", () => {
   it("allows an owned Action list past page 100 with a bounded page size", async () => {
     const findMany = vi.fn().mockResolvedValue([{ id: 1001 }]);
-    fixtures.getPrisma.mockReturnValue({
+    const tx = {
       ticket: { findFirst: vi.fn().mockResolvedValue({ id: 1 }) },
       actionTaken: { count: vi.fn().mockResolvedValue(1001), findMany },
-    });
+    };
+    const transaction = vi.fn(async (fn: (value: unknown) => Promise<unknown>) => fn(tx));
+    fixtures.getPrisma.mockReturnValue({ $transaction: transaction });
     const response = await request(app).get("/api/tickets/1/actions?page=101&pageSize=10");
     expect(response.status).toBe(200);
     expect(response.body.meta).toMatchObject({ page: 101, pageSize: 10, totalItems: 1001, hasNextPage: false });
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 1000, take: 10, where: { ticketId: 1 } }));
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ select: expect.objectContaining({ assignee: { select: { id: true, name: true } }, performedBy: { select: { id: true, name: true } } }) }));
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: "RepeatableRead" });
   });
 
-  it("bounds invalid large offsets and keeps the separate history limit", async () => {
+  it("bounds invalid large offsets for both list and history", async () => {
     const list = await request(app).get("/api/tickets/1/actions?page=214748367&pageSize=10");
     expect(list.status).toBe(400);
-    const history = await request(app).get("/api/staff/tickets/1/history?page=101");
+    const history = await request(app).get("/api/staff/tickets/1/history?page=900719925474101&pageSize=10");
     expect(history.status).toBe(400);
     expect(fixtures.getPrisma).not.toHaveBeenCalled();
+  });
+
+  it("uses a bounded database query for history beyond page 100 and a uniform shape", async () => {
+    const query = vi.fn().mockResolvedValue([{ eventId: 2, source: "ACTION", actionId: 9, kind: "CREATED", fromStatus: null, toStatus: "PLANNED", fieldName: null, oldValue: null, newValue: null, reason: null, confirmation: null, createdAt: new Date("2026-01-01T00:00:00Z"), actorId: 1, actorName: "Staff", actorRole: "IT_STAFF" }]);
+    const tx = { ticket: { findUnique: vi.fn().mockResolvedValue({ id: 1 }) }, actionTakenEvent: { count: vi.fn().mockResolvedValue(1001) }, ticketWorkflowEvent: { count: vi.fn().mockResolvedValue(0) }, $queryRaw: query };
+    fixtures.getPrisma.mockReturnValue({ $transaction: async (fn: (value: unknown) => Promise<unknown>) => fn(tx) });
+    const response = await request(app).get("/api/staff/tickets/1/history?page=101&pageSize=10");
+    expect(response.status).toBe(200);
+    expect(response.body.meta).toMatchObject({ page: 101, totalItems: 1001 });
+    expect(response.body.data[0]).toMatchObject({ id: "action:2", source: "ACTION", confirmation: null, actor: { id: 1 } });
+    expect(query).toHaveBeenCalledOnce();
+    const sql = query.mock.calls[0][0] as { strings: string[]; values: unknown[] };
+    expect(sql.strings.join(" ")).toContain("UNION ALL");
+    expect(sql.values).toEqual([1, 1, 10, 1000]);
   });
 
   it("returns the persisted original receipt without rewriting an Action on retry", async () => {

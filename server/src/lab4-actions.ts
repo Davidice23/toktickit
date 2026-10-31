@@ -32,6 +32,13 @@ const actionSelect = {
   performedBy: { select: { id: true, name: true, role: true, isActive: true } },
 } satisfies Prisma.ActionTakenSelect;
 
+// Requesters need names for shared work, not internal account role/activity.
+const requesterActionSelect = {
+  ...actionSelect,
+  assignee: { select: { id: true, name: true } },
+  performedBy: { select: { id: true, name: true } },
+} satisfies Prisma.ActionTakenSelect;
+
 type SafeAction = Prisma.ActionTakenGetPayload<{ select: typeof actionSelect }>;
 type LockedTicket = {
   id: number;
@@ -126,7 +133,7 @@ function requireExpectedTicketVersion(body: Record<string, unknown>): number {
   return version;
 }
 
-function parsePagination(req: Request, maximumPage?: number) {
+function parsePagination(req: Request, history = false) {
   const unknown = Object.keys(req.query).filter((key) => key !== "page" && key !== "pageSize");
   if (unknown.length) throw validation({ query: "Only page and pageSize query parameters are supported" });
   const page = req.query.page === undefined ? 1 : positiveInteger(req.query.page);
@@ -134,10 +141,10 @@ function parsePagination(req: Request, maximumPage?: number) {
   const fields: Record<string, string> = {};
   if (!page) fields.page = "Page must be a positive integer";
   if (!pageSize || ![10, 20, 50].includes(pageSize)) fields.pageSize = "Page size must be 10, 20, or 50";
-  // Prisma skip uses a signed 32-bit integer; IDs are positive signed 32-bit
-  // generated IDs, so this still covers the full possible Action ID space.
-  if (page && pageSize && page > Math.floor(2147483647 / pageSize) + 1) fields.page = "Page exceeds the supported offset range";
-  if (page && maximumPage && page > maximumPage) fields.page = `Page must be an integer from 1 to ${maximumPage}`;
+  // Prisma skip is signed 32-bit; the parameterized history SQL uses bigint
+  // offsets and must remain exactly representable as a JavaScript integer.
+  const maximumOffset = history ? Number.MAX_SAFE_INTEGER : 2147483647;
+  if (page && pageSize && page > Math.floor(maximumOffset / pageSize) + 1) fields.page = "Page exceeds the supported offset range";
   if (Object.keys(fields).length) throw validation(fields);
   return { page: page as number, pageSize: pageSize as number };
 }
@@ -188,19 +195,15 @@ router.get("/api/tickets/:ticketId/actions", requireSession, requireNormalSessio
   if (!ticketId || !auth) return res.status(404).json(errorBody("TICKET_NOT_FOUND", "Ticket not found"));
   try {
     const { page, pageSize } = parsePagination(req);
-    const prisma = getPrisma();
-    const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, requesterId: auth.user.id }, select: { id: true } });
-    if (!ticket) return res.status(404).json(errorBody("TICKET_NOT_FOUND", "Ticket not found"));
-    const [totalItems, data] = await Promise.all([
-      prisma.actionTaken.count({ where: { ticketId } }),
-      prisma.actionTaken.findMany({
-        where: { ticketId },
-        select: actionSelect,
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-    ]);
+    const { totalItems, data } = await getPrisma().$transaction(async (tx) => {
+      const ticket = await tx.ticket.findFirst({ where: { id: ticketId, requesterId: auth.user.id }, select: { id: true } });
+      if (!ticket) throw new ApiFailure(404, "TICKET_NOT_FOUND", "Ticket not found");
+      const [totalItems, data] = await Promise.all([
+        tx.actionTaken.count({ where: { ticketId } }),
+        tx.actionTaken.findMany({ where: { ticketId }, select: requesterActionSelect, orderBy: [{ createdAt: "asc" }, { id: "asc" }], skip: (page - 1) * pageSize, take: pageSize }),
+      ]);
+      return { totalItems, data };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
     return res.status(200).json({ data, meta: pageMeta(page, pageSize, totalItems) });
   } catch (error) {
     return sendFailure(res, error, "requester list");
@@ -212,19 +215,15 @@ router.get("/api/staff/tickets/:ticketId/actions", requireSession, requireNormal
   if (!ticketId) return res.status(404).json(errorBody("TICKET_NOT_FOUND", "Ticket not found"));
   try {
     const { page, pageSize } = parsePagination(req);
-    const prisma = getPrisma();
-    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
-    if (!ticket) return res.status(404).json(errorBody("TICKET_NOT_FOUND", "Ticket not found"));
-    const [totalItems, data] = await Promise.all([
-      prisma.actionTaken.count({ where: { ticketId } }),
-      prisma.actionTaken.findMany({
-        where: { ticketId },
-        select: actionSelect,
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-    ]);
+    const { totalItems, data } = await getPrisma().$transaction(async (tx) => {
+      const ticket = await tx.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+      if (!ticket) throw new ApiFailure(404, "TICKET_NOT_FOUND", "Ticket not found");
+      const [totalItems, data] = await Promise.all([
+        tx.actionTaken.count({ where: { ticketId } }),
+        tx.actionTaken.findMany({ where: { ticketId }, select: actionSelect, orderBy: [{ createdAt: "asc" }, { id: "asc" }], skip: (page - 1) * pageSize, take: pageSize }),
+      ]);
+      return { totalItems, data };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
     return res.status(200).json({ data, meta: pageMeta(page, pageSize, totalItems) });
   } catch (error) {
     return sendFailure(res, error, "staff list");
@@ -235,64 +234,56 @@ router.get("/api/staff/tickets/:ticketId/history", requireSession, requireNormal
   const ticketId = positiveInteger(req.params.ticketId);
   if (!ticketId) return res.status(404).json(errorBody("TICKET_NOT_FOUND", "Ticket not found"));
   try {
-    const { page, pageSize } = parsePagination(req, 100);
-    const prisma = getPrisma();
-    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
-    if (!ticket) return res.status(404).json(errorBody("TICKET_NOT_FOUND", "Ticket not found"));
-    const take = page * pageSize;
-    const [actionCount, workflowCount, actionEvents, workflowEvents] = await Promise.all([
-      prisma.actionTakenEvent.count({ where: { action: { ticketId } } }),
-      prisma.ticketWorkflowEvent.count({ where: { ticketId } }),
-      prisma.actionTakenEvent.findMany({
-        where: { action: { ticketId } },
-        include: { actor: { select: { id: true, name: true, role: true } }, action: { select: { id: true } } },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        take,
-      }),
-      prisma.ticketWorkflowEvent.findMany({
-        where: { ticketId },
-        include: { actor: { select: { id: true, name: true, role: true } } },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        take,
-      }),
-    ]);
-    const data = [
-      ...actionEvents.map((event) => ({
-        id: `action:${event.id}`,
-        source: "ACTION" as const,
-        actionId: event.action.id,
-        kind: event.kind,
-        fromStatus: event.fromStatus,
-        toStatus: event.toStatus,
-        fieldName: event.fieldName,
-        oldValue: event.oldValue,
-        newValue: event.newValue,
-        reason: event.reason,
-        actor: event.actor,
-        createdAt: event.createdAt,
-      })),
-      ...workflowEvents.map((event) => ({
-        id: `ticket:${event.id}`,
-        source: "TICKET" as const,
-        actionId: null,
-        kind: "STATUS_CHANGED" as const,
-        fromStatus: event.previousStatus,
-        toStatus: event.currentStatus,
-        fieldName: null,
-        oldValue: null,
-        newValue: null,
-        reason: event.reason,
-        confirmation: event.confirmation,
-        actor: event.actor,
-        createdAt: event.createdAt,
-      })),
-    ].sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime()
-      || left.source.localeCompare(right.source)
-      || Number(left.id.split(":")[1]) - Number(right.id.split(":")[1]));
-    const offset = (page - 1) * pageSize;
-    const pageData = data.slice(offset, offset + pageSize);
-    const totalItems = actionCount + workflowCount;
-    return res.status(200).json({ data: pageData, meta: pageMeta(page, pageSize, totalItems) });
+    const { page, pageSize } = parsePagination(req, true);
+    type HistoryRow = {
+      eventId: number; source: "ACTION" | "TICKET"; actionId: number | null; kind: string;
+      fromStatus: string | null; toStatus: string | null; fieldName: string | null;
+      oldValue: Prisma.JsonValue | null; newValue: Prisma.JsonValue | null; reason: string | null;
+      confirmation: boolean | null; createdAt: Date; actorId: number; actorName: string; actorRole: string;
+    };
+    const { totalItems, rows } = await getPrisma().$transaction(async (tx) => {
+      const ticket = await tx.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+      if (!ticket) throw new ApiFailure(404, "TICKET_NOT_FOUND", "Ticket not found");
+      const [actionCount, workflowCount] = await Promise.all([
+        tx.actionTakenEvent.count({ where: { action: { ticketId } } }),
+        tx.ticketWorkflowEvent.count({ where: { ticketId } }),
+      ]);
+      // Query the merged page in PostgreSQL, rather than fetching all previous
+      // pages into application memory. All values are parameterized.
+      const rows = await tx.$queryRaw<HistoryRow[]>(Prisma.sql`
+        WITH event_rows AS (
+          SELECT e."id" AS "eventId", 0 AS "sourceRank", 'ACTION'::text AS "source",
+            e."actionId", e."kind"::text AS "kind", e."fromStatus"::text AS "fromStatus",
+            e."toStatus"::text AS "toStatus", e."fieldName", e."oldValue", e."newValue",
+            e."reason", NULL::boolean AS "confirmation", e."createdAt",
+            u."id" AS "actorId", u."name" AS "actorName", u."role"::text AS "actorRole"
+          FROM "ActionTakenEvent" e
+          JOIN "ActionTaken" a ON a."id" = e."actionId"
+          JOIN "User" u ON u."id" = e."actorId"
+          WHERE a."ticketId" = ${ticketId}
+          UNION ALL
+          SELECT w."id", 1, 'TICKET'::text, NULL::integer, 'STATUS_CHANGED'::text,
+            w."previousStatus"::text, w."currentStatus"::text, NULL::text,
+            NULL::jsonb, NULL::jsonb, w."reason", w."confirmation", w."createdAt",
+            u."id", u."name", u."role"::text
+          FROM "TicketWorkflowEvent" w
+          JOIN "User" u ON u."id" = w."actorId"
+          WHERE w."ticketId" = ${ticketId}
+        )
+        SELECT * FROM event_rows
+        ORDER BY "createdAt" ASC, "sourceRank" ASC, "eventId" ASC
+        LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+      `);
+      return { totalItems: actionCount + workflowCount, rows };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+    const data = rows.map((row) => ({
+      id: `${row.source === "ACTION" ? "action" : "ticket"}:${row.eventId}`,
+      source: row.source, actionId: row.actionId, kind: row.kind,
+      fromStatus: row.fromStatus, toStatus: row.toStatus, fieldName: row.fieldName,
+      oldValue: row.oldValue, newValue: row.newValue, reason: row.reason,
+      confirmation: row.confirmation, actor: { id: row.actorId, name: row.actorName, role: row.actorRole }, createdAt: row.createdAt,
+    }));
+    return res.status(200).json({ data, meta: pageMeta(page, pageSize, totalItems) });
   } catch (error) {
     return sendFailure(res, error, "history");
   }
@@ -319,7 +310,9 @@ router.post("/api/staff/tickets/:ticketId/actions", requireSession, requireNorma
     if (!description || description.length > 2000) fields.description = "Description must contain 1-2,000 characters";
     if (typeof followUpRequired !== "boolean") fields.followUpRequired = "Follow-up required must be true or false";
     if (body.followUpNote !== undefined && body.followUpNote !== null && typeof body.followUpNote !== "string") fields.followUpNote = "Follow-up note must be text or null";
+    else if (typeof body.followUpNote === "string" && !followUpNote) fields.followUpNote = "Follow-up note must not be blank";
     else if (followUpRequired === true && !followUpNote) fields.followUpNote = "A note is required when follow-up is selected";
+    else if (followUpRequired === false && followUpNote) fields.followUpNote = "A follow-up note cannot be set when follow-up is turned off";
     if (followUpNote && followUpNote.length > 2000) fields.followUpNote = "Follow-up note must contain at most 2,000 characters";
     if (body.attachmentNotes !== undefined && body.attachmentNotes !== null && typeof body.attachmentNotes !== "string") fields.attachmentNotes = "Attachment notes must be text or null";
     else if (attachmentNotes !== null && attachmentNotes.length > 2000) fields.attachmentNotes = "Attachment notes must contain at most 2,000 characters";
@@ -332,7 +325,7 @@ router.post("/api/staff/tickets/:ticketId/actions", requireSession, requireNorma
       description: description as string,
       followUpRequired: followUpRequired as boolean,
       followUpNote: (followUpRequired ? followUpNote : null) as string | null,
-      attachmentNotes: attachmentNotes as string | null,
+      attachmentNotes: attachmentNotes || null,
     };
     const requestFingerprint = fingerprint(normalized);
     const result = await getPrisma().$transaction(async (tx) => {
@@ -450,11 +443,12 @@ router.patch("/api/staff/tickets/:ticketId/actions/:actionId", requireSession, r
         eventChanges.push({ fieldName: "assigneeId", oldValue: action.assignee.id, newValue: patch.assigneeId, kind: "ASSIGNED" });
       }
       const nextFollowUpRequired = patch.followUpRequired ?? action.followUpRequired;
-      if (patch.followUpRequired === false && patch.followUpNote) throw validation({ followUpNote: "A follow-up note cannot be set when follow-up is turned off" });
+      if (!nextFollowUpRequired && patch.followUpNote) throw validation({ followUpNote: "A follow-up note cannot be set when follow-up is turned off" });
       const nextFollowUpNote = patch.followUpRequired === false
         ? null
         : patch.followUpNote === undefined ? action.followUpNote : patch.followUpNote;
       if (nextFollowUpRequired && !nextFollowUpNote) throw validation({ followUpNote: "A note is required when follow-up is selected" });
+      if (!nextFollowUpRequired && nextFollowUpNote) throw validation({ followUpNote: "Clear the existing note explicitly or enable follow-up before updating" });
       if (nextFollowUpRequired !== action.followUpRequired) {
         updates.followUpRequired = nextFollowUpRequired;
         eventChanges.push({ fieldName: "followUpRequired", oldValue: action.followUpRequired, newValue: nextFollowUpRequired, kind: "EDITED" });
@@ -512,7 +506,7 @@ router.patch("/api/staff/tickets/:ticketId/actions/:actionId/status", requireSes
     if (requestedStatus === ActionStatus.COMPLETED && (!resultText || resultText.length > 2000)) validationFields.result = "Result must contain 1-2,000 characters";
     if (requestedStatus === ActionStatus.CANCELLED && (!cancellationReason || cancellationReason.length > 1000)) validationFields.cancellationReason = "Cancellation reason must contain 1-1,000 characters";
     if (followUpRequired !== undefined && typeof followUpRequired !== "boolean") validationFields.followUpRequired = "Follow-up required must be true or false";
-    if (followUpNote !== undefined && (!followUpNote || followUpNote.length > 2000)) validationFields.followUpNote = "Follow-up note must contain 1-2,000 characters";
+    if (body.followUpNote !== undefined && body.followUpNote !== null && (typeof body.followUpNote !== "string" || !followUpNote || followUpNote.length > 2000)) validationFields.followUpNote = "Follow-up note must contain 1-2,000 characters or be null";
     if (Object.keys(validationFields).length) throw validation(validationFields);
 
     const result = await getPrisma().$transaction(async (tx) => {
@@ -538,6 +532,8 @@ router.patch("/api/staff/tickets/:ticketId/actions/:actionId/status", requireSes
         const follow = followUpRequired ?? action.followUpRequired;
         const note = followUpNote === undefined ? (follow ? action.followUpNote : null) : followUpNote;
         if (follow && !note) throw validation({ followUpNote: "A note is required when follow-up is selected" });
+        if (!follow && followUpNote) throw validation({ followUpNote: "A follow-up note cannot be set when follow-up is turned off" });
+        if (!follow && action.followUpNote && followUpRequired !== false && followUpNote !== null) throw validation({ followUpNote: "Clear the existing note explicitly or enable follow-up before completing" });
         data.result = resultText as string;
         data.followUpRequired = follow;
         data.followUpNote = follow ? note : null;

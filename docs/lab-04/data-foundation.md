@@ -85,6 +85,15 @@ These items were identified after the #70 implementation and remain visible for
 downstream work; no historical workflow identity or resolution time is
 fabricated.
 
+**Proposed owner and sequencing:** carry these #77 findings in a separate
+`fix/70-data-foundation-followup` PR from `lab4-staging` back to
+`lab4-staging`, associated with Issue #70. This is a plan, not an existing PR
+or branch. Resolve the `resolvedAt`/legacy/seed-history decision and its tests
+before dashboard Issue #72; address or explicitly agree the constraints,
+seed event kind, FK/idempotency and migration-helper follow-ups before final
+hardening #73. The learner and reviewer must accept the actual decisions and
+CI evidence; PR #78 does not itself claim these items are fixed.
+
 - Seeded `RESOLVED`/`CLOSED` Tickets currently have no `resolvedAt`, and the
   seed does not create baseline `TicketWorkflowEvent` rows. Existing Lab 1-3
   Tickets also start with `resolvedAt = NULL` and no workflow history. Before

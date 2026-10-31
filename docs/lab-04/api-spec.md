@@ -2,7 +2,7 @@
 
 > **Status: Approved Contract baseline (PR #75); endpoint implementation is tracked by Issues #66-#72.** Existing Lab 1-3 routes remain available unless this document explicitly extends their request/response requirements. All examples omit secrets and are illustrative rather than captured results.
 
-> **Proposed #66 amendment — learner approved; peer review and disposable-database verification pending.** The Action pagination and idempotency-receipt details below are not yet an integrated or peer-approved Contract revision.
+> **Proposed #66 amendment — learner approved the pagination and retry direction; peer re-review and disposable-database verification pending.** The pagination, history, note validation, requester projection, and idempotency-receipt details below are not yet an integrated or peer-approved Contract revision.
 
 ## 1. Common conventions
 
@@ -18,6 +18,8 @@
 ### 1.2 Mutation coordination
 
 All Lab 4 Action mutations and Ticket assignment/priority/status mutations include `expectedTicketVersion` in the JSON body. Action edit/status mutations additionally include `expectedActionVersion`. The server validates versions and all related gate predicates inside the same parent-Ticket transaction/coordination boundary.
+
+Current Action write lock order is: lock the parent Ticket `FOR UPDATE`; share-lock the active operational actor; read the child Action where needed; share-lock a newly selected assignee where applicable; then write the Action, receipt/events, and Ticket version in the same transaction. The future Ticket workflow implementation (#71) must use a compatible coordination order, including role/deactivation races; this document does not claim that legacy Ticket mutation paths have already been migrated.
 
 `POST` Action create additionally requires a non-empty `Idempotency-Key` HTTP header. The key is scoped to authenticated actor and Ticket. A replay with the same normalized Action fields returns the original successful JSON representation, including its original Ticket version, with status `200` instead of the initial `201`; the same key with different normalized Action fields returns `409 IDEMPOTENCY_KEY_REUSED`. `expectedTicketVersion` is a concurrency precondition and is excluded from the fingerprint, but must still be a valid positive integer on retry. A replayed version is historical: reload current Ticket/Action state before further mutations. The immutable response receipt is retained with the Action; this Lab has no expiry or hard-delete operation. Historical Actions without a receipt return `409 IDEMPOTENCY_RECEIPT_UNAVAILABLE` on matching-key retry: check the existing Action rather than inventing an old response or issuing a new key blindly.
 
@@ -48,7 +50,7 @@ If a write is stale, the server returns `409 STALE_VERSION`; it never silently r
 }
 ```
 
-`performedBy` and `actionAt` are null until completion. The server fills both on the first transition to `COMPLETED`; a requester sees the same safe public Action content for an owned Ticket. Internal audit/event detail is not included in this representation.
+`performedBy` and `actionAt` are null until completion. The server fills both on the first transition to `COMPLETED`. Staff/Admin use the representation above; a Requester of an owned Ticket receives the same shared Action content but `assignee` and `performedBy` expose only `{ id, name }`, not the account role or activation status. Internal audit/event detail is not included in this representation.
 
 ### 2.2 Lifecycle values
 
@@ -64,7 +66,7 @@ TicketStatus = NEW | OPEN | IN_PROGRESS | WAITING_FOR_REQUESTER |
 
 `GET /api/tickets/:ticketId/actions`
 
-Query: `page` defaults to `1`; `pageSize` defaults to `20` and accepts `10`, `20`, or `50`. Action pages are not limited to 100: the maximum page for a chosen page size is `floor(2147483647 / pageSize) + 1`, ensuring the zero-based Prisma offset remains a signed 32-bit integer and covers the positive generated Action-ID space. Items are ordered `createdAt ASC, id ASC`. Page results are not a snapshot across multiple requests while records are being created.
+Query: `page` defaults to `1`; `pageSize` defaults to `20` and accepts `10`, `20`, or `50`. Action pages are not limited to 100: the maximum page for a chosen page size is `floor(2147483647 / pageSize) + 1`, ensuring the zero-based Prisma offset remains a signed 32-bit integer and covers the positive generated Action-ID space. Items are ordered `createdAt ASC, id ASC`. Ticket authorization, count, and page data use one repeatable-read transaction snapshot per request; separate page requests are not a shared snapshot while records change.
 
 | Caller | Result |
 | --- | --- |
@@ -113,6 +115,7 @@ Rules and outcomes:
 
 - IT Staff/Admin only. The Ticket must be reachable in the operational scope and not in a terminal state where the Contract forbids new Actions.
 - `assigneeId` must identify an active IT Staff/Admin. Description is trimmed, non-empty, and within the length limit in `specification.md`; follow-up note is required iff follow-up is true.
+- For create, edit, and completion, non-blank follow-up notes are rejected when the resulting `followUpRequired` is false; when true, the trimmed note is required. An explicitly supplied blank follow-up note is invalid. Turning follow-up off clears the old note. If a legacy record already has a note while follow-up is false, an unrelated edit/completion is rejected until the client explicitly clears the note or enables follow-up; it is not silently erased. Optional attachment notes containing only whitespace normalize to `null` in both create and edit.
 - Server creates `PLANNED`, sets immutable creation/audit actor from session, appends an Action event, increments parent Ticket workflow version, and never accepts `performedBy`, `status`, `result`, timestamps, or audit IDs from the client.
 - `201` returns `{ data: Action }` and the current Ticket version in `meta.ticketVersion`.
 - `400 VALIDATION_ERROR`, `404 TICKET_NOT_FOUND`, `409 STALE_VERSION`, `409 IDEMPOTENCY_KEY_REUSED`, or safe `500 INTERNAL_ERROR` occur as applicable.
@@ -181,7 +184,7 @@ Status response example:
 
 `GET /api/staff/tickets/:ticketId/history`
 
-IT Staff/Admin receive ordered safe workflow and Action lifecycle events. History accepts `page` 1–100 and the same page sizes as the Action list; this separate temporary history limit bounds the current merge-in-memory implementation and must be revisited before claiming complete unlimited audit-history access. Events are ordered by `createdAt ASC`, then source (`ACTION` before `TICKET`), then numeric event ID ascending. The response does not expose Internal Note body, secrets, or hidden operational details. The requester Ticket detail receives only the Action list; a dedicated requester history endpoint is out of scope unless separately approved.
+IT Staff/Admin receive ordered safe workflow and Action lifecycle events. History uses the same allowed page sizes, without the previous 100-page cap; page/offset must be exactly representable as a JavaScript safe integer. PostgreSQL performs a parameterized `UNION ALL`, ordering, `LIMIT`, and `OFFSET`, so the application materializes at most one page, rather than every preceding page. Deep offset queries can still scan or sort many rows; performance-smoke evidence and a keyset option for large deployments remain future work, not a production SLA. Events are ordered by `createdAt ASC`, then source (`ACTION` before `TICKET`), then numeric event ID ascending. Both event sources include the same fields, including `confirmation` (`null` for Action events). Ticket existence, counts, and page rows use one repeatable-read snapshot per request, not a shared snapshot across separate requests. The response does not expose Internal Note body, secrets, or hidden operational details. The requester Ticket detail receives only the Action list; a dedicated requester history endpoint is out of scope unless separately approved.
 
 ## 6. Dashboard endpoints
 
