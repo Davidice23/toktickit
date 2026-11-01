@@ -1,15 +1,74 @@
 import { FormEvent, useEffect, useState } from "react";
-import { AuthSession, Category, changePassword, checkSystem, fetchCurrentUser, login, logout, User } from "./api.js";
+import { AuthSession, changePassword, fetchCurrentUser, login, logout, User } from "./api.js";
 import CreateTicket from "./CreateTicket.js";
 import MyTickets from "./MyTickets.js";
 import TicketDetail from "./TicketDetail.js";
 import StaffTicketQueue from "./StaffTicketQueue.js";
 import StaffTicketDetail from "./StaffTicketDetail.js";
 import UserManagement from "./UserManagement.js";
+import RequesterDashboard from "./RequesterDashboard.js";
+import StaffDashboard from "./StaffDashboard.js";
 
-type UiState = "idle" | "loading" | "success" | "error";
 type AuthState = "loading" | "logged-out" | "authenticated";
-type Workspace = "requester" | "staff" | "admin";
+type Workspace = "dashboard" | "requester" | "staff" | "admin";
+type Route = {
+  allowed: boolean;
+  workspace: Workspace;
+  createMode: boolean;
+  requesterTicketId: number | null;
+  staffTicketId: number | null;
+  selectedActionId: number | null;
+  scope: string;
+  status: string;
+  asOf: string;
+};
+
+const dashboardRoute = (): Route => ({ allowed: true, workspace: "dashboard", createMode: false, requesterTicketId: null, staffTicketId: null, selectedActionId: null, scope: "", status: "", asOf: "" });
+
+function resolveRoute(hash: string, role: User["role"]): Route {
+  const value = hash.startsWith("#") ? hash.slice(1) : hash;
+  const separator = value.indexOf("?");
+  const path = separator < 0 ? value : value.slice(0, separator);
+  const params = new URLSearchParams(separator < 0 ? "" : value.slice(separator + 1));
+  const roleIsRequester = role === "REQUESTER";
+  const roleIsOperational = role === "IT_STAFF" || role === "ADMINISTRATOR";
+  const positiveId = (input: string | undefined) => input && /^[1-9]\d*$/.test(input) && Number.isSafeInteger(Number(input)) ? Number(input) : null;
+  const asOf = params.get("asOf") ?? "";
+
+  if (!path || path === "top" || path === "dashboard") return dashboardRoute();
+  if (path === "my-tickets" && roleIsRequester) {
+    const scope = params.get("scope") ?? "";
+    const status = params.get("status") ?? "";
+    if (scope && !["open", "recently-updated", "recently-resolved"].includes(scope)) return { ...dashboardRoute(), allowed: false };
+    if (status && status !== "WAITING_FOR_REQUESTER") return { ...dashboardRoute(), allowed: false };
+    return { ...dashboardRoute(), workspace: "requester", scope, status, asOf };
+  }
+  if (path === "create-ticket" && roleIsRequester) return { ...dashboardRoute(), workspace: "requester", createMode: true };
+  const requesterTicket = path.match(/^requester-ticket\/([1-9]\d*)$/);
+  if (requesterTicket && roleIsRequester) {
+    const ticketId = positiveId(requesterTicket[1]);
+    return ticketId ? { ...dashboardRoute(), workspace: "requester", requesterTicketId: ticketId } : { ...dashboardRoute(), allowed: false };
+  }
+  if (path === "staff-tickets" && roleIsOperational) {
+    const scope = params.get("scope") ?? "";
+    const scopes = ["unassigned-open", "my-owned-open", "my-active-actions", "my-recently-completed-actions", "urgent-open"];
+    if (scope && !scopes.includes(scope)) return { ...dashboardRoute(), allowed: false };
+    return { ...dashboardRoute(), workspace: "staff", scope, asOf };
+  }
+  const staffTicket = path.match(/^staff-ticket\/([1-9]\d*)$/);
+  if (staffTicket && roleIsOperational) {
+    const ticketId = positiveId(staffTicket[1]);
+    const selectedActionId = positiveId(params.get("action") ?? undefined);
+    if (!ticketId || (params.has("action") && !selectedActionId)) return { ...dashboardRoute(), allowed: false };
+    return { ...dashboardRoute(), workspace: "staff", staffTicketId: ticketId, selectedActionId };
+  }
+  if (path === "admin-users" && role === "ADMINISTRATOR") return { ...dashboardRoute(), workspace: "admin" };
+  return { ...dashboardRoute(), allowed: false };
+}
+
+function replaceHash(hash: string) {
+  window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${hash}`);
+}
 
 function LoginPanel({ onSuccess }: { onSuccess: (session: AuthSession) => void }) {
   const [email, setEmail] = useState("");
@@ -82,84 +141,95 @@ function ChangePasswordPanel({ session, onComplete }: { session: AuthSession; on
 }
 
 export default function App() {
-  const [state, setState] = useState<UiState>("idle");
-  const [categories, setCategories] = useState<Category[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [createMode, setCreateMode] = useState(false);
   const [detailTicketId, setDetailTicketId] = useState<number | null>(null);
   const [staffTicketId, setStaffTicketId] = useState<number | null>(null);
-  const [workspace, setWorkspace] = useState<Workspace>("requester");
+  const [selectedActionId, setSelectedActionId] = useState<number | null>(null);
+  const [workspace, setWorkspace] = useState<Workspace>("dashboard");
+  const [ticketScope, setTicketScope] = useState("");
+  const [ticketStatus, setTicketStatus] = useState("");
+  const [dashboardAsOf, setDashboardAsOf] = useState("");
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [session, setSession] = useState<AuthSession | null>(null);
 
+  function applyRoute(route: Route) {
+    setWorkspace(route.workspace);
+    setCreateMode(route.createMode);
+    setDetailTicketId(route.requesterTicketId);
+    setStaffTicketId(route.staffTicketId);
+    setSelectedActionId(route.selectedActionId);
+    setTicketScope(route.scope);
+    setTicketStatus(route.status);
+    setDashboardAsOf(route.asOf);
+    setMenuOpen(false);
+  }
+
+  function establishSession(next: AuthSession, useCurrentLocation = false) {
+    setSession(next);
+    if (next.mustChangePassword) {
+      applyRoute(dashboardRoute());
+    } else {
+      const route = useCurrentLocation ? resolveRoute(window.location.hash, next.user.role) : dashboardRoute();
+      if (!route.allowed) replaceHash("#dashboard");
+      applyRoute(route.allowed ? route : dashboardRoute());
+      if (!window.location.hash) replaceHash("#dashboard");
+    }
+    setAuthState("authenticated");
+  }
+
   useEffect(() => {
     void fetchCurrentUser()
-      .then((current) => {
-        setSession(current);
-        setWorkspace(current.user.role === "ADMINISTRATOR" ? "admin" : current.user.role === "IT_STAFF" ? "staff" : "requester");
-        setAuthState("authenticated");
-      })
+      .then((current) => establishSession(current, true))
       .catch(() => setAuthState("logged-out"));
   }, []);
 
-  async function handleCheck() {
-    setState("loading");
-    try {
-      const result = await checkSystem();
-      setCategories(result.categories);
-      setState("success");
-    } catch {
-      setCategories([]);
-      setState("error");
+  const authenticated = authState === "authenticated" && session !== null;
+  const isStaff = authenticated && session.user.role !== "REQUESTER";
+  const isAdmin = authenticated && session.user.role === "ADMINISTRATOR";
+
+  useEffect(() => {
+    if (!authenticated || !session) return;
+    const onHashChange = () => {
+      const route = resolveRoute(window.location.hash, session.user.role);
+      if (!route.allowed) {
+        replaceHash("#dashboard");
+        applyRoute(dashboardRoute());
+      } else {
+        applyRoute(route);
+      }
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [authenticated, session]);
+
+  function navigate(hash: string) {
+    const nextHash = hash.startsWith("#") ? hash : `#${hash}`;
+    if (window.location.hash === nextHash) {
+      if (session) {
+        const route = resolveRoute(nextHash, session.user.role);
+        if (route.allowed) applyRoute(route);
+      }
+      return;
     }
+    window.location.hash = nextHash;
   }
 
   async function handleLogout() {
     await logout().catch(() => undefined);
     setSession(null);
     setAuthState("logged-out");
-    setCreateMode(false);
-    setDetailTicketId(null);
-    setStaffTicketId(null);
-    setWorkspace("requester");
+    applyRoute(dashboardRoute());
+    replaceHash("#dashboard");
   }
 
-  const authenticated = authState === "authenticated" && session !== null;
-  const isStaff = authenticated && session.user.role !== "REQUESTER";
-  const isAdmin = authenticated && session.user.role === "ADMINISTRATOR";
   const roleLabel: Record<User["role"], string> = { REQUESTER: "Requester", IT_STAFF: "IT Staff", ADMINISTRATOR: "Administrator" };
-
-  function showStaffQueue() {
-    setWorkspace("staff");
-    setStaffTicketId(null);
-    setMenuOpen(false);
-  }
-
-  function showAdminUsers() {
-    setWorkspace("admin");
-    setMenuOpen(false);
-  }
-
-  function showMyTickets() {
-    setWorkspace("requester");
-    setCreateMode(false);
-    setDetailTicketId(null);
-    setMenuOpen(false);
-  }
-
-  function showCreateTicket() {
-    setWorkspace("requester");
-    setCreateMode(true);
-    setDetailTicketId(null);
-    setMenuOpen(false);
-  }
-
   const pageTitle = authenticated && session.mustChangePassword
     ? "Password change required"
-    : isAdmin && workspace === "admin" ? "Administrator workspace" : isStaff ? "Staff operations workspace" : "Requester workspace";
+    : workspace === "admin" ? "Administrator workspace" : isStaff ? "Staff operations workspace" : "Requester workspace";
   const pageIntro = authenticated && session.mustChangePassword
     ? "Choose a new password before entering your workspace."
-    : isAdmin && workspace === "admin"
+    : workspace === "admin"
     ? "Manage user access, roles, account status, and initial passwords safely."
     : isStaff
       ? "Review, assign, and resolve operational Tickets with an auditable workflow."
@@ -168,20 +238,21 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <a className="app-brand" href="#top" aria-label="TokTickIT home">TokTickIT</a>
+        <a className="app-brand" href="#dashboard" aria-label="TokTickIT home">TokTickIT</a>
         {authenticated && !session.mustChangePassword && (
           <>
             <button className="menu-toggle" type="button" aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen((open) => !open)}>Menu</button>
             <nav id="primary-navigation" className={`primary-navigation${menuOpen ? " is-open" : ""}`} aria-label="Primary navigation">
+              <a className={`nav-link${workspace === "dashboard" ? " is-active" : ""}`} href="#dashboard" aria-current={workspace === "dashboard" ? "page" : undefined}>Dashboard</a>
               {isStaff ? (
                 <>
-                  <a className={`nav-link${workspace === "staff" ? " is-active" : ""}`} href="#staff-tickets" aria-current={workspace === "staff" ? "page" : undefined} onClick={showStaffQueue}>Staff Queue</a>
-                  {isAdmin && <a className={`nav-link${workspace === "admin" ? " is-active" : ""}`} href="#admin-users" aria-current={workspace === "admin" ? "page" : undefined} onClick={showAdminUsers}>User Management</a>}
+                  <a className={`nav-link${workspace === "staff" ? " is-active" : ""}`} href="#staff-tickets" aria-current={workspace === "staff" ? "page" : undefined}>Staff Queue</a>
+                  {isAdmin && <a className={`nav-link${workspace === "admin" ? " is-active" : ""}`} href="#admin-users" aria-current={workspace === "admin" ? "page" : undefined}>User Management</a>}
                 </>
               ) : (
                 <>
-                  <a className={`nav-link${workspace === "requester" && !createMode ? " is-active" : ""}`} href="#my-tickets" aria-current={workspace === "requester" && !createMode ? "page" : undefined} onClick={showMyTickets}>My Tickets</a>
-                  <a className={`nav-link${createMode ? " is-active" : ""}`} href="#create-ticket" aria-current={createMode ? "page" : undefined} onClick={showCreateTicket}>Create Ticket</a>
+                  <a className={`nav-link${workspace === "requester" && !createMode ? " is-active" : ""}`} href="#my-tickets" aria-current={workspace === "requester" && !createMode ? "page" : undefined}>My Tickets</a>
+                  <a className={`nav-link${createMode ? " is-active" : ""}`} href="#create-ticket" aria-current={createMode ? "page" : undefined}>Create Ticket</a>
                 </>
               )}
               <span className="requester-context" aria-label="Current User">{session.user.name} <span className="role-badge">{roleLabel[session.user.role]}</span></span>
@@ -199,29 +270,28 @@ export default function App() {
           <p className="page-intro">{pageIntro}</p>
 
           {authState === "loading" && <div className="state-callout state-info" role="status">Checking your session...</div>}
-          {authState === "logged-out" && <LoginPanel onSuccess={(next) => { setSession(next); setWorkspace(next.user.role === "ADMINISTRATOR" ? "admin" : next.user.role === "IT_STAFF" ? "staff" : "requester"); setAuthState("authenticated"); }} />}
-          {authenticated && session.mustChangePassword && <ChangePasswordPanel session={session} onComplete={(next) => { setSession(next); setWorkspace(next.user.role === "ADMINISTRATOR" ? "admin" : next.user.role === "IT_STAFF" ? "staff" : "requester"); }} />}
+          {authState === "logged-out" && <LoginPanel onSuccess={(next) => establishSession(next)} />}
+          {authenticated && session.mustChangePassword && <ChangePasswordPanel session={session} onComplete={(next) => { establishSession(next); replaceHash("#dashboard"); }} />}
 
           {authenticated && !session.mustChangePassword && (
-            isStaff ? (
+            workspace === "dashboard" ? (
+              isStaff
+                ? <StaffDashboard key={`${session.user.id}:staff-dashboard`} isAdministrator={isAdmin} />
+                : <RequesterDashboard key={`${session.user.id}:requester-dashboard`} />
+            ) : isStaff ? (
               <>
-                {workspace === "staff" && staffTicketId === null && <StaffTicketQueue onOpen={setStaffTicketId} />}
-                {workspace === "staff" && staffTicketId !== null && <StaffTicketDetail ticketId={staffTicketId} onBack={() => setStaffTicketId(null)} />}
-                {isAdmin && workspace === "admin" && <UserManagement currentUserId={session.user.id} />}
+                {workspace === "staff" && staffTicketId === null && <StaffTicketQueue key={`${session.user.id}:queue:${ticketScope}:${dashboardAsOf}`} onOpen={(id) => navigate(`#staff-ticket/${id}`)} scope={ticketScope || undefined} asOf={dashboardAsOf || undefined} />}
+                {workspace === "staff" && staffTicketId !== null && <StaffTicketDetail key={`${session.user.id}:staff-ticket:${staffTicketId}`} ticketId={staffTicketId} selectedActionId={selectedActionId ?? undefined} onBack={() => navigate("#staff-tickets")} />}
+                {isAdmin && workspace === "admin" && <UserManagement key={`${session.user.id}:admin-users`} currentUserId={session.user.id} />}
               </>
             ) : (
               <>
-                {createMode && <CreateTicket />}
-                {!createMode && detailTicketId === null && <MyTickets onOpen={setDetailTicketId} />}
-                {!createMode && detailTicketId !== null && <TicketDetail ticketId={detailTicketId} onBack={() => setDetailTicketId(null)} />}
+                {createMode && <CreateTicket key={`${session.user.id}:create`} />}
+                {!createMode && detailTicketId === null && <MyTickets key={`${session.user.id}:my-tickets:${ticketScope}:${ticketStatus}:${dashboardAsOf}`} onOpen={(id) => navigate(`#requester-ticket/${id}`)} scope={ticketScope || undefined} status={ticketStatus || undefined} asOf={dashboardAsOf || undefined} />}
+                {!createMode && detailTicketId !== null && <TicketDetail key={`${session.user.id}:requester-ticket:${detailTicketId}`} ticketId={detailTicketId} onBack={() => navigate("#my-tickets")} />}
               </>
             )
           )}
-
-          <button className="btn btn-primary-green" onClick={handleCheck} disabled={state === "loading"}>{state === "loading" ? "Loading..." : "Check System"}</button>
-          {state === "loading" && <div className="state-callout state-info" role="status" aria-live="polite"><strong>Loading:</strong> Checking TokTickIT API...</div>}
-          {state === "success" && <><div className="state-callout state-success" role="status"><strong>System Status:</strong> Online</div><section aria-labelledby="category-heading"><h2 id="category-heading">IT Request Categories</h2><ul className="category-list">{categories.map((category) => <li className="category-item" key={category.id}>{category.name}</li>)}</ul></section></>}
-          {state === "error" && <div className="state-callout state-error" role="alert"><p><strong>System Status:</strong> Offline</p><p>Unable to connect to TokTickIT API</p></div>}
         </section>
       </main>
     </div>

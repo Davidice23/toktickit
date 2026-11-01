@@ -93,6 +93,20 @@ export async function fetchTickets(paramsOrRequester: URLSearchParams | number, 
   return payload;
 }
 
+export async function fetchRequesterDashboard(): Promise<RequesterDashboard> {
+  const response = await fetch(`${API_URL}/api/dashboard/requester`, { credentials: "include" });
+  const payload = await jsonResponse<{ data: RequesterDashboard }>(response, "Unable to load Requester dashboard");
+  if (!payload.data || !payload.data.metrics || !Array.isArray(payload.data.attentionTickets)) throw new Error("Unexpected Requester dashboard response");
+  return payload.data;
+}
+
+export async function fetchStaffDashboard(): Promise<StaffDashboard> {
+  const response = await fetch(`${API_URL}/api/dashboard/staff`, { credentials: "include" });
+  const payload = await jsonResponse<{ data: StaffDashboard }>(response, "Unable to load Staff dashboard");
+  if (!payload.data || !payload.data.metrics || !Array.isArray(payload.data.myActiveActions) || !Array.isArray(payload.data.recentOrUrgentTickets)) throw new Error("Unexpected Staff dashboard response");
+  return payload.data;
+}
+
 export async function fetchTicketDetail(requesterOrTicketId: number, legacyTicketId?: number): Promise<TicketDetail> {
   const ticketId = legacyTicketId ?? requesterOrTicketId;
   const response = await fetch(`${API_URL}/api/tickets/${ticketId}`, { credentials: "include" });
@@ -186,6 +200,56 @@ export interface StaffTicketRow extends TicketSummary {
   itPriority: TicketPriority | null;
 }
 export interface StaffTicketList { data: StaffTicketRow[]; meta: TicketList["meta"] }
+export interface DashboardRequesterTicket {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  currentStatus: TicketStatus;
+  requestedPriority: TicketPriority;
+  itPriority: TicketPriority | null;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+}
+export interface RequesterDashboard {
+  asOf: string;
+  metrics: { openTickets: number; waitingForRequester: number; recentlyUpdated: number; recentlyResolved: number };
+  attentionTickets: DashboardRequesterTicket[];
+  recentlyUpdatedTickets: DashboardRequesterTicket[];
+  recentlyResolvedTickets: DashboardRequesterTicket[];
+  drillDown: Record<"openTickets" | "waitingForRequester" | "recentlyUpdated" | "recentlyResolved", string>;
+}
+export interface DashboardStaffTicket {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  currentStatus: TicketStatus;
+  requestedPriority: TicketPriority;
+  itPriority: TicketPriority | null;
+  ownerId: number | null;
+  createdAt: string;
+  updatedAt: string;
+  requester: { id: number; name: string };
+  owner: { id: number; name: string } | null;
+}
+export interface DashboardAction {
+  id: number;
+  ticketId: number;
+  status: ActionStatus;
+  description: string;
+  actionAt: string | null;
+  updatedAt: string;
+  ticket: { id: number; ticketNumber: string; summary: string };
+}
+export interface StaffDashboard {
+  asOf: string;
+  metrics: { unassignedOpenTickets: number; myOwnedOpenTickets: number; myActiveActions: number; myRecentlyCompletedActions: number; urgentOpenTickets: number };
+  myActiveActions: DashboardAction[];
+  myRecentlyCompletedActions: DashboardAction[];
+  recentOrUrgentTickets: DashboardStaffTicket[];
+  drillDown: Record<"unassignedOpenTickets" | "myOwnedOpenTickets" | "myActiveActions" | "myRecentlyCompletedActions" | "urgentOpenTickets", string>;
+  adminAccountSummary: Array<{ role: User["role"]; activeUsers: number }> | null;
+}
 export interface InternalNote { id: number; ticketId: number; body: string; createdAt: string; author: { id: number; name: string; role: User["role"] } }
 export interface StaffTicketDetail extends Omit<TicketDetail, "itPriority" | "publicComments"> {
   workflowVersion: number;

@@ -14,7 +14,7 @@ import {
 } from "./api.js";
 
 type Draft = { assigneeId: string; description: string; followUpRequired: boolean; followUpNote: string; attachmentNotes: string };
-type Props = { ticketId: number; role: "requester" | "staff"; ticketVersion?: number; ticketStatus?: string; onTicketChanged?: () => void | Promise<void> };
+type Props = { ticketId: number; role: "requester" | "staff"; ticketVersion?: number; ticketStatus?: string; focusActionId?: number; onTicketChanged?: () => void | Promise<void> };
 type ApiProblem = Error & { code?: string; fields?: Record<string, string> };
 type TransitionDialog = { action: ActionTakenData; kind: "complete" | "cancel" } | null;
 
@@ -35,7 +35,7 @@ function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString() : "Pending completion";
 }
 
-export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticketStatus = "OPEN", onTicketChanged }: Props) {
+export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticketStatus = "OPEN", focusActionId, onTicketChanged }: Props) {
   const isStaff = role === "staff";
   const canWrite = isStaff && !terminalTicketStatuses.has(ticketStatus);
   const [actionPage, setActionPage] = useState<ActionPage | null>(null);
@@ -131,6 +131,20 @@ export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticket
       void loadDirectory(1, "");
     }
   }, [ticketId, role]);
+
+  useEffect(() => {
+    if (!focusActionId || !isStaff || actionState !== "ready" || !actionPage) return;
+    const action = actionPage.data.find((entry) => entry.id === focusActionId);
+    if (action) {
+      const target = document.getElementById(`action-card-${focusActionId}`);
+      if (target) {
+        if (typeof target.scrollIntoView === "function") target.scrollIntoView({ block: "center" });
+        target.focus();
+      }
+      return;
+    }
+    if (actionPage.meta.hasNextPage) void loadActions(actionPageNumber + 1);
+  }, [focusActionId, isStaff, actionState, actionPage, actionPageNumber]);
 
   useEffect(() => {
     if (!transitionDialog) return;
