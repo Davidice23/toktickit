@@ -54,6 +54,7 @@ test("Requester, Staff, and Administrator see role-appropriate Actions Taken wor
   await signOut(page);
 
   await signIn(page, "it.staff.one@example.test", /Staff operations workspace/);
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Staff Queue" }).click();
   await page.getByLabel("Search").fill(summary);
   await page.getByRole("button", { name: "Search Queue" }).click();
   const staffRow = page.getByRole("row").filter({ hasText: summary });
@@ -88,6 +89,7 @@ test("Requester, Staff, and Administrator see role-appropriate Actions Taken wor
   await signOut(page);
 
   await signIn(page, "anan.chaiya@example.test", /Requester workspace/);
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "My Tickets" }).click();
   await page.getByLabel("Search tickets").fill(summary);
   await page.getByRole("button", { name: "Search", exact: true }).click();
   const requesterRow = page.getByRole("row").filter({ hasText: summary });
@@ -101,7 +103,7 @@ test("Requester, Staff, and Administrator see role-appropriate Actions Taken wor
   await captureResponsiveEvidence(page, testInfo, "requester");
   await signOut(page);
 
-  await signIn(page, "admin@example.test", /Administrator workspace/);
+  await signIn(page, "admin@example.test", /Staff operations workspace/);
   await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Staff Queue" }).click();
   await page.getByLabel("Search").fill(summary);
   await page.getByRole("button", { name: "Search Queue" }).click();

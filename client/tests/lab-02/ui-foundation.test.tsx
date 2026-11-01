@@ -11,10 +11,17 @@ afterEach(() => vi.restoreAllMocks());
 describe("Lab 2 UI foundation", () => {
   it("exposes authenticated navigation and current user context", async () => {
     vi.spyOn(api, "fetchCurrentUser").mockResolvedValue(session);
+    vi.spyOn(api, "fetchRequesterDashboard").mockResolvedValue({
+      asOf: "2026-11-01T05:00:00.000Z", metrics: { openTickets: 0, waitingForRequester: 0, recentlyUpdated: 0, recentlyResolved: 0 },
+      attentionTickets: [], recentlyUpdatedTickets: [], recentlyResolvedTickets: [],
+      drillDown: { openTickets: "", waitingForRequester: "", recentlyUpdated: "", recentlyResolved: "" },
+    });
     render(<App />);
 
     expect(await screen.findByRole("navigation", { name: /primary navigation/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "My Tickets" })).toHaveAttribute("aria-current", "page");
+    expect(await screen.findByText("No Tickets are waiting for your response.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "My Tickets" })).not.toHaveAttribute("aria-current", "page");
     expect(screen.getByLabelText("Current User")).toHaveTextContent("Wachirawit");
     expect(screen.queryByRole("button", { name: "Choose Requester" })).not.toBeInTheDocument();
   });

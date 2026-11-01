@@ -65,6 +65,21 @@ describe("Lab 4 Actions Taken UI", () => {
     expect(fetchActions).toHaveBeenCalledTimes(2);
   });
 
+  it("follows a dashboard-selected Action across bounded pages and restores focus to it", async () => {
+    const selected = { ...plannedAction, id: 99, description: "Follow dashboard-selected work" };
+    const fetchActions = vi.spyOn(api, "fetchStaffActions")
+      .mockResolvedValueOnce({ data: [], meta: { page: 1, pageSize: 20, totalItems: 21, totalPages: 2, hasPreviousPage: false, hasNextPage: true } })
+      .mockResolvedValueOnce({ data: [selected], meta: { page: 2, pageSize: 20, totalItems: 21, totalPages: 2, hasPreviousPage: true, hasNextPage: false } });
+    vi.spyOn(api, "fetchStaffTicketHistory").mockResolvedValue({ data: [], meta });
+    vi.spyOn(api, "fetchOperationalUsers").mockResolvedValue({ data: [], meta });
+    render(<ActionsTaken ticketId={18} role="staff" ticketStatus="OPEN" focusActionId={99} />);
+
+    expect(await screen.findByText("Follow dashboard-selected work")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("listitem")).toHaveFocus());
+    expect(fetchActions).toHaveBeenCalledTimes(2);
+    expect(fetchActions).toHaveBeenNthCalledWith(2, 18, 2);
+  });
+
   it("creates, starts, and completes an Action with server versions and accessible dialog behavior", async () => {
     let currentAction: api.ActionTaken | null = null;
     const fetchActions = vi.spyOn(api, "fetchStaffActions").mockImplementation(async () => ({ data: currentAction ? [currentAction] : [], meta: { ...meta, totalItems: currentAction ? 1 : 0, totalPages: currentAction ? 1 : 0 } }));
