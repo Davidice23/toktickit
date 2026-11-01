@@ -129,6 +129,41 @@ h2 { margin-top: 32px; font-size: 1.25rem; }
 .checkbox-label { display: flex; align-items: flex-start; gap: 8px; font-weight: 400 !important; }
 .checkbox-label input { min-height: 20px; margin-top: 3px; }
 .staff-description { white-space: pre-wrap; overflow-wrap: anywhere; }
+.actions-taken { min-width: 0; }
+.actions-taken > .list-header { align-items: flex-start; }
+.actions-taken > .list-header h3 { margin: 0; }
+.action-list, .history-list { display: grid; gap: 14px; margin: 18px 0 0; padding: 0; list-style: none; }
+.action-card { display: grid; gap: 14px; min-width: 0; padding: 16px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); }
+.action-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.action-card-heading p { margin: 0; }
+.action-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.action-detail-grid > div { min-width: 0; }
+.action-detail-grid dt { color: var(--color-text-muted); font-size: .85rem; font-weight: 600; }
+.action-detail-grid dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+.preserve-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.action-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.action-controls .btn { width: fit-content; }
+.action-form { display: grid; gap: 9px; margin-top: 18px; padding: 18px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-pale-green); }
+.action-form h4 { margin: 0; }
+.action-form label:not(.checkbox-label) { font-weight: 600; }
+.action-form input:not([type="checkbox"]), .action-form select, .action-form textarea { width: 100%; min-height: 44px; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text); background: var(--color-surface); font: inherit; }
+.action-form textarea { min-height: 88px; resize: vertical; }
+.action-form [aria-invalid="true"] { border-color: var(--color-error); }
+.action-search-row { display: flex; align-items: stretch; gap: 8px; }
+.action-search-row input { flex: 1; min-width: 0; }
+.action-directory-pagination { margin-top: 6px; }
+.workflow-history { display: grid; gap: 10px; margin-top: 12px; }
+.workflow-history h4 { margin: 0; }
+.history-list li { display: grid; gap: 4px; min-width: 0; padding: 12px; border-left: 3px solid var(--color-secondary); background: var(--color-surface); }
+.action-dialog-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / 55%); }
+.action-dialog { width: min(620px, 100%); max-height: min(90dvh, 820px); overflow-y: auto; padding: 22px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); box-shadow: 0 18px 54px rgb(0 0 0 / 28%); }
+.action-dialog > h4 { margin: 0; }
+.dialog-form { margin-top: 16px; padding: 0; border: 0; background: transparent; }
+.action-form .state-callout { margin-top: 4px; }
+.field-error-list { margin: 6px 0 0; padding-left: 22px; }
+.action-form .checkbox-label { font-weight: 500; }
+.action-form .checkbox-label input { min-height: 20px; }
+.action-form .helper-text { margin: 0; }
 .internal-notes { border-color: #d0a24c; background: #fffaf0; }
 .public-comments li, .internal-notes li { margin-bottom: 12px; }
 .public-comments li p, .internal-notes li p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -147,6 +182,12 @@ h2 { margin-top: 32px; font-size: 1.25rem; }
   .queue-filter-actions { align-items: stretch; flex-direction: column; }
   .queue-filter-actions .btn { width: 100%; }
   .staff-ticket-detail .detail-grid { grid-template-columns: 1fr; }
+  .action-detail-grid { grid-template-columns: 1fr; }
+  .action-card-heading { align-items: flex-start; flex-direction: column; }
+  .action-search-row { align-items: stretch; flex-direction: column; }
+  .action-search-row .btn, .action-controls .btn { width: 100%; }
+  .action-dialog-backdrop { align-items: end; padding: 8px; }
+  .action-dialog { max-height: 88dvh; padding: 16px; }
   .staff-queue-table td > .queue-cell-stack { flex: 1 1 0; text-align: right; }
   .staff-queue-table td::before { flex: 0 0 40%; }
   .admin-user-table td[data-label="Name"] { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 4px 10px; }

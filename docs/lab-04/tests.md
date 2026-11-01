@@ -53,6 +53,7 @@ Tests run only against a disposable/local test database or isolated schema expli
 | API-10 | API / AC-08 | Staff history combines Action and Ticket events with deterministic ordering, consistent response shape, and beyond-page-100 access | Staff/Admin can read; Requester receives `403`; no Internal Note content | `server/tests/lab-04/actions-taken.api.test.ts` | Prior history passed PR #78 CI at `b863ac0`; new SQL and mixed-source tests await CI |
 | API-11 | Unit / AC-05–07 | Non-object/incorrect note types, pagination bounds, replay and missing receipt | Safe errors and replay logic without database access | `server/tests/lab-04/actions-validation.unit.test.ts` | PASS locally — 21 mocked-auth/database-isolated tests; new-head PR CI pending |
 | API-12 | API / AC-05,08 | Follow-up false prevents nonempty note in create/edit/completion; blank attachment normalizes consistently | `400` for incompatible notes; no stale version/event writes; blank attachment is `null` | `server/tests/lab-04/actions-taken.api.test.ts` | New integration test awaiting disposable-DB CI; negative cases passed in mocked unit tests |
+| API-13 | API / AC-02,16 | Only Staff/Admin can search and page through active operational users; no email, password, or inactive/non-operational account is returned | Anonymous `401`, Requester `403`, Staff/Admin same safe rows, invalid query `400` | `server/tests/lab-04/actions-taken.api.test.ts`; `server/tests/lab-04/actions-validation.unit.test.ts` | IMPLEMENTED — server type-check passes; local API-test execution is blocked by sandbox TCP loopback `EACCES`; new-head disposable-PostgreSQL CI remains required |
 
 ### 3.3 Ticket workflow and concurrency
 
@@ -80,9 +81,9 @@ Tests run only against a disposable/local test database or isolated schema expli
 
 | Test ID | Type / AC | What it proves | Expected result | Planned path | Final |
 | --- | --- | --- | --- | --- | --- |
-| UI-A-01 | Component / AC-04-06,16 | Action list/create/edit/assign/complete/cancel fields and validation states | Correct controls/data/error associations; requester is read-only | `client/tests/lab-04/ActionsTaken.test.tsx` | PLANNED |
-| UI-A-02 | Component / AC-16 | Loading, empty, forbidden/not-found, conflict reload, and recoverable safe-failure preserve form draft | Correct labelled feedback/retry/reconciliation | `client/tests/lab-04/ActionsTaken.test.tsx` | PLANNED |
-| UI-W-01 | Component / AC-09-11,16 | Only permitted Ticket transitions are offered; gate error refreshes safe Ticket state | Correct form choices/confirmation/reason/conflict feedback | `client/tests/lab-04/TicketWorkflow.test.tsx` | PLANNED |
+| UI-A-01 | Component / AC-04-06,16 | Action list/create/edit/assign/start/complete/cancel fields, safe Requester view, field errors and dialog focus | Correct controls/data/error associations; Requester is read-only | `client/tests/lab-04/ActionsTaken.test.tsx` | PASS locally — 9/9 component tests; keyboard dialog focus/return and lifecycle controls covered |
+| UI-A-02 | Component / AC-16 | Loading, empty, forbidden/not-found, conflict reload, and recoverable safe-failure preserve form draft | Correct labelled feedback/retry/reconciliation | `client/tests/lab-04/ActionsTaken.test.tsx`; `client/tests/lab-04/TicketWorkflow.test.tsx` | PASS locally — forbidden retry, Ticket not-found retry, validation draft retention, and stale-version reconciliation covered |
+| UI-W-01 | Component / AC-09-11,16 | Only permitted Ticket transitions are offered; gate error shows safe actionable prerequisites and preserves selected status | Correct form choices/confirmation/reason/conflict feedback | `client/tests/lab-04/TicketWorkflow.test.tsx` | PASS locally — 3/3 component tests, including transition validation, actionable resolution gate, and not-found retry |
 | UI-R-01 | Component / AC-12,14-16 | Requester dashboard cards/lists/empty/drill-down and current-session scope | Correct labels/links/role fallback | `client/tests/lab-04/RequesterDashboard.test.tsx` | PLANNED |
 | UI-S-01 | Component / AC-13-16 | Staff dashboard cards including current-user Actions, urgent/recent, failure/drill-down | Correct data mapping/labels/role fallback | `client/tests/lab-04/StaffDashboard.test.tsx` | PLANNED |
 | UI-N-01 | Component / AC-15 | Landing/navigation/session switch clears prior role/user workspace data | Correct default/active page/no stale cache | `client/tests/lab-04/RoleNavigation.test.tsx` | PLANNED |
@@ -93,7 +94,7 @@ Tests run only against a disposable/local test database or isolated schema expli
 
 | Test ID | Type / AC | What it proves | Expected result | Planned path | Final |
 | --- | --- | --- | --- | --- | --- |
-| E2E-01 | E2E / AC-01-08,16 | Staff creates, assigns, edits, starts, completes, and cancels Actions; requester reads safe records | Full browser-to-API flow with appropriate UI state | `e2e/lab-04/actions-taken-flow.spec.ts` | PLANNED |
+| E2E-01 | E2E / AC-01-08,16 | Requester, IT Staff, and Administrator see permitted role views; Staff creates/starts/completes an Action and Requester reads safe records | Full browser-to-API flow; no requester mutation controls; responsive checks and screenshots at 1440/820/390 | `e2e/lab-04/actions-taken-workflow.spec.ts` | IMPLEMENTED — local browser execution requires the isolated database-backed CI environment |
 | E2E-02 | E2E / AC-09-11,16 | Ticket lifecycle, resolution gate, advisory behavior, stale/recoverable state | Valid flow works; invalid/bypass state is safely handled | `e2e/lab-04/ticket-resolution.spec.ts` | PLANNED |
 | E2E-03 | E2E / AC-12-16,19 | Requester/Staff/Admin dashboard navigation, metrics/drill-down, 3 viewport evidence | Role-scoped dashboard and responsive behavior works | `e2e/lab-04/dashboards.spec.ts` | PLANNED |
 | REG-01 | E2E/API/UI / AC-17 | Auth, password change, My Tickets, Ticket Detail, Attachments, Comments, Staff queue/detail, Internal Notes, Admin management | Representative Lab 1-3 permitted workflows remain usable | Existing `server/tests/lab-01`, `server/tests/lab-02`, `server/tests/lab-03`, `client/tests/lab-*`, `e2e/lab-03` plus documented Lab 4 additions | PLANNED |
@@ -251,6 +252,12 @@ After the documentation-only commit `41de7c2`, CI run [41247615076](https://gith
 The serialized exact-head run [41248716827](https://github.com/Davidice23/toktickit/actions/runs/41248716827) passed all required jobs on head `ea0f1b8cdd056037c7e5124612024e591e56916a`. Server regression passed **111/111 tests across 26 files**, with focused Lab 4 Server **68/68 across 9 files**. Client regression passed **25/25 across 13 files**, with focused Lab 4 Client **1/1**. Browser regression passed **16/16**, with focused Lab 4 Browser **2/2**. CI used disposable PostgreSQL; no personal/local database was used.
 
 
+
+#### Issue #67 local and browser verification (2026-11-01, pre-PR)
+
+The focused client run `npm --prefix client run test:lab4 -- --reporter=dot` passed **13/13 tests across 3 files**. The full client regression `npm --prefix client test -- --reporter=dot` passed **37/37 tests across 15 files**; one pre-existing React `act(...)` warning remains in the Lab 1 `App.test.tsx`. Client production build and server TypeScript build both passed, as did `git diff --check`. The end-to-end test inventory command `npm --prefix e2e test -- --list` discovered **17 tests across 8 files**, including the new Issue #67 flow; browser execution was not run locally because it requires the disposable PostgreSQL-backed CI service.
+
+The new operational-assignee API contract and tests are implemented. Its server build passes, but local API-test execution could not proceed because Supertest's TCP loopback bind returned sandbox `EACCES`; no personal database was used. New-head server regression and browser suites therefore remain required CI gates. The initial focus-return assertion caught a stale-node test expectation after a successful refresh; the UI now targets the refreshed Action card, and the test verifies the currently rendered element. Review/push/PR creation has not occurred.
 
 ### 5.6 Exact-main release evidence
 

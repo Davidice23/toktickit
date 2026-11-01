@@ -210,6 +210,45 @@ router.get("/api/tickets/:ticketId/actions", requireSession, requireNormalSessio
   }
 });
 
+router.get("/api/staff/operational-users", requireSession, requireNormalSession, requireRoles(...operationalRoles), async (req: Request, res: Response) => {
+  const unknown = Object.keys(req.query).filter((key) => !["search", "page", "pageSize"].includes(key));
+  const fields: Record<string, string> = {};
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  if (unknown.length) fields.query = "Only search, page, and pageSize are supported";
+  if (req.query.search !== undefined && typeof req.query.search !== "string") fields.search = "Search must be text";
+  if (search.length > 120) fields.search = "Search must contain at most 120 characters";
+  const page = req.query.page === undefined ? 1 : positiveInteger(req.query.page);
+  const pageSize = req.query.pageSize === undefined ? 20 : positiveInteger(req.query.pageSize);
+  if (!page) fields.page = "Page must be a positive integer";
+  if (!pageSize || ![10, 20, 50].includes(pageSize)) fields.pageSize = "Page size must be 10, 20, or 50";
+  if (page && pageSize && page > Math.floor(2147483647 / pageSize) + 1) fields.page = "Page exceeds the supported offset range";
+  if (Object.keys(fields).length) return res.status(400).json(errorBody("VALIDATION_ERROR", "Check the highlighted values and try again.", fields));
+
+  const validPage = page as number;
+  const validPageSize = pageSize as number;
+  const where: Prisma.RequesterUserWhereInput = {
+    isActive: true,
+    role: { in: [...operationalRoles] },
+    ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
+  };
+  try {
+    const prisma = getPrisma();
+    const [totalItems, data] = await Promise.all([
+      prisma.requesterUser.count({ where }),
+      prisma.requesterUser.findMany({
+        where,
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+        skip: (validPage - 1) * validPageSize,
+        take: validPageSize,
+        select: { id: true, name: true, role: true },
+      }),
+    ]);
+    return res.status(200).json({ data, meta: pageMeta(validPage, validPageSize, totalItems) });
+  } catch (error) {
+    return sendFailure(res, error, "operational user directory");
+  }
+});
+
 router.get("/api/staff/tickets/:ticketId/actions", requireSession, requireNormalSession, requireRoles(...operationalRoles), async (req: Request, res: Response) => {
   const ticketId = positiveInteger(req.params.ticketId);
   if (!ticketId) return res.status(404).json(errorBody("TICKET_NOT_FOUND", "Ticket not found"));

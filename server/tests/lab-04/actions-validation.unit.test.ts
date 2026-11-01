@@ -127,6 +127,13 @@ describe("Lab 4 Action input validation without a database", () => {
 });
 
 describe("Lab 4 pagination and idempotency without a database", () => {
+  it.each(["pageSize=1", `search=${"x".repeat(121)}`])("rejects invalid operational-user search pagination (%s) before querying the database", async (query) => {
+    const response = await request(app).get(`/api/staff/operational-users?${query}`);
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+    expect(fixtures.getPrisma).not.toHaveBeenCalled();
+  });
+
   it("allows an owned Action list past page 100 with a bounded page size", async () => {
     const findMany = vi.fn().mockResolvedValue([{ id: 1001 }]);
     const tx = {
