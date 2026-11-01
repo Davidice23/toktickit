@@ -119,6 +119,34 @@ afterAll(async () => {
 });
 
 describe.sequential("Lab 4 Actions Taken API and authorization", () => {
+  it("lists only active operational assignees to Staff/Admin without exposing account details", async () => {
+    const anonymous = await request(app).get("/api/staff/operational-users");
+    expect(anonymous.status).toBe(401);
+    const requesterDenied = await requesterA.agent.get("/api/staff/operational-users");
+    expect(requesterDenied.status).toBe(403);
+
+    const staffName = await prisma.requesterUser.findUniqueOrThrow({ where: { id: staff.userId }, select: { name: true } });
+    const search = encodeURIComponent(staffName.name.slice(0, 6));
+    const staffResponse = await staff.agent.get(`/api/staff/operational-users?search=${search}&pageSize=10`);
+    const adminResponse = await admin.agent.get(`/api/staff/operational-users?search=${search}&pageSize=10`);
+    expect(staffResponse.status).toBe(200);
+    expect(adminResponse.status).toBe(200);
+    expect(staffResponse.body).toEqual(adminResponse.body);
+    expect(staffResponse.body.data).toContainEqual({ id: staff.userId, name: staffName.name, role: "IT_STAFF" });
+    expect(staffResponse.body.data.every((candidate: { role: string }) => ["IT_STAFF", "ADMINISTRATOR"].includes(candidate.role))).toBe(true);
+    expect(staffResponse.body.data[0]).not.toHaveProperty("email");
+    expect(staffResponse.body.data[0]).not.toHaveProperty("isActive");
+
+    const fullDirectory = await staff.agent.get("/api/staff/operational-users?pageSize=50");
+    expect(fullDirectory.body.data).toContainEqual(expect.objectContaining({ id: staff.userId, role: "IT_STAFF" }));
+    expect(fullDirectory.body.data).toContainEqual(expect.objectContaining({ id: admin.userId, role: "ADMINISTRATOR" }));
+    expect(fullDirectory.body.data).not.toContainEqual(expect.objectContaining({ id: inactiveStaffId }));
+
+    const invalidPageSize = await staff.agent.get("/api/staff/operational-users?pageSize=100");
+    expect(invalidPageSize.status).toBe(400);
+    expect(invalidPageSize.body.error.fields.pageSize).toBeTruthy();
+  });
+
   it("requires a session, role, and CSRF for writes", async () => {
     const ticketId = await makeTicket();
     const noSession = await request(app).get(`/api/staff/tickets/${ticketId}/actions`);

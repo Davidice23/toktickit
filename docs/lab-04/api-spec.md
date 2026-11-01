@@ -82,7 +82,15 @@ Response:
 { "data": [/* Safe Action representation */], "meta": { "page": 1, "pageSize": 20, "totalItems": 2, "totalPages": 1, "hasPreviousPage": false, "hasNextPage": false } }
 ```
 
-### 3.2 Read Actions on an operational Ticket
+### 3.2 Search active operational assignees
+
+`GET /api/staff/operational-users`
+
+IT Staff and Administrators may search the active operational-user directory to assign Actions without exposing an unrestricted user export. Query parameters: optional `search` (trimmed name substring, maximum 120 characters), `page` (default `1`), and `pageSize` (default `20`, allowed values `10`, `20`, or `50`). Results include only active `IT_STAFF` and `ADMINISTRATOR` accounts, ordered by `name ASC, id ASC`, and expose only `{ id, name, role }`. The response is `{ data, meta }` using the standard pagination envelope. Unsupported fields and invalid pagination/search values return the standard `400 VALIDATION_ERROR` envelope. Requesters and unauthenticated callers are denied by the existing session/role middleware. This read-only endpoint does not require CSRF.
+
+The endpoint exists to satisfy the Contract's searchable/selectable active-assignee UI. It does not replace server-side active-role validation on Action create/edit; the account may change after the directory response.
+
+### 3.3 Read Actions on an operational Ticket
 
 `GET /api/staff/tickets/:ticketId/actions`
 
@@ -96,7 +104,7 @@ Uses the same bounded pagination and deterministic ordering as the Requester Act
 
 Action lists are paginated to avoid unbounded responses while allowing the Ticket detail UI to load the complete history across pages.
 
-### 3.3 Create Action
+### 3.4 Create Action
 
 `POST /api/staff/tickets/:ticketId/actions`
 
@@ -122,7 +130,7 @@ Rules and outcomes:
 - `201` returns `{ data: Action }` and the current Ticket version in `meta.ticketVersion`.
 - `400 VALIDATION_ERROR`, `404 TICKET_NOT_FOUND`, `409 STALE_VERSION`, `409 IDEMPOTENCY_KEY_REUSED`, or safe `500 INTERNAL_ERROR` occur as applicable.
 
-### 3.4 Edit or reassign a non-terminal Action
+### 3.5 Edit or reassign a non-terminal Action
 
 `PATCH /api/staff/tickets/:ticketId/actions/:actionId`
 
@@ -139,7 +147,7 @@ Rules and outcomes:
 
 The body may include only mutable fields. `status`, `result`, `performedBy`, `actionAt`, `cancelledAt`, `cancellationReason`, actor IDs, and audit data are rejected here. An update to a terminal Action returns `409 ACTION_TERMINAL`; lifecycle changes use the status route. The server appends a redacted-safe edit/reassignment event, increments Action and parent Ticket versions, and returns `200` with the updated Action and `meta.ticketVersion`.
 
-### 3.5 Transition, complete, or cancel an Action
+### 3.6 Transition, complete, or cancel an Action
 
 `PATCH /api/staff/tickets/:ticketId/actions/:actionId/status`
 
