@@ -97,6 +97,7 @@ test("Requester, Staff, and Administrator see role-appropriate Actions Taken wor
   await signOut(page);
 
   await signIn(page, "admin@example.test", /Administrator workspace/);
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Staff Queue" }).click();
   await page.getByLabel("Search").fill(summary);
   await page.getByRole("button", { name: "Search Queue" }).click();
   const adminRow = page.getByRole("row").filter({ hasText: summary });
