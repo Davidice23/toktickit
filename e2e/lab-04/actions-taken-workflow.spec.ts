@@ -10,8 +10,24 @@ const viewports = [
 async function captureResponsiveEvidence(page: Page, testInfo: TestInfo, role: string) {
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-    expect(overflow, `${role} view should not overflow at ${viewport.width}px`).toBeLessThanOrEqual(1);
+    const layout = await page.evaluate(() => {
+      const viewportWidth = window.innerWidth;
+      const offenders = Array.from(document.body.querySelectorAll<HTMLElement>("*"))
+        .map((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            element: `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ""}${typeof element.className === "string" && element.className.trim() ? `.${element.className.trim().replace(/\s+/g, ".")}` : ""}`,
+            right: Math.round(rect.right),
+            scrollWidth: element.scrollWidth,
+            clientWidth: element.clientWidth,
+            text: (element.innerText || "").replace(/\s+/g, " ").slice(0, 100),
+          };
+        })
+        .filter((entry) => entry.right > viewportWidth + 1)
+        .slice(0, 8);
+      return { amount: document.documentElement.scrollWidth - viewportWidth, offenders };
+    });
+    expect(layout.amount, `${role} view should not overflow at ${viewport.width}px; offending elements: ${JSON.stringify(layout.offenders)}`).toBeLessThanOrEqual(1);
     await page.screenshot({ path: testInfo.outputPath(`lab4-actions-${role}-${viewport.width}.png`), fullPage: true });
   }
 }
