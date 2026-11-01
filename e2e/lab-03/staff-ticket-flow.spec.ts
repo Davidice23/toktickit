@@ -52,6 +52,7 @@ test("Requester submission flows through Staff ownership, priority, status, and 
   await signOut(page);
 
   await signIn(page, "anan.chaiya@example.test", /Requester workspace/);
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "My Tickets" }).click();
   await page.getByLabel("Search tickets").fill(summary);
   await page.getByRole("button", { name: "Search", exact: true }).click();
   const requesterRow = page.getByRole("row").filter({ hasText: summary });

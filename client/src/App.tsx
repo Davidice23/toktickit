@@ -238,21 +238,21 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <a className="app-brand" href="#dashboard" aria-label="TokTickIT home">TokTickIT</a>
+        <a className="app-brand" href="#dashboard" aria-label="TokTickIT home" onClick={() => setMenuOpen(false)}>TokTickIT</a>
         {authenticated && !session.mustChangePassword && (
           <>
             <button className="menu-toggle" type="button" aria-expanded={menuOpen} aria-controls="primary-navigation" onClick={() => setMenuOpen((open) => !open)}>Menu</button>
             <nav id="primary-navigation" className={`primary-navigation${menuOpen ? " is-open" : ""}`} aria-label="Primary navigation">
-              <a className={`nav-link${workspace === "dashboard" ? " is-active" : ""}`} href="#dashboard" aria-current={workspace === "dashboard" ? "page" : undefined}>Dashboard</a>
+              <a className={`nav-link${workspace === "dashboard" ? " is-active" : ""}`} href="#dashboard" aria-current={workspace === "dashboard" ? "page" : undefined} onClick={() => setMenuOpen(false)}>Dashboard</a>
               {isStaff ? (
                 <>
-                  <a className={`nav-link${workspace === "staff" ? " is-active" : ""}`} href="#staff-tickets" aria-current={workspace === "staff" ? "page" : undefined}>Staff Queue</a>
-                  {isAdmin && <a className={`nav-link${workspace === "admin" ? " is-active" : ""}`} href="#admin-users" aria-current={workspace === "admin" ? "page" : undefined}>User Management</a>}
+                  <a className={`nav-link${workspace === "staff" ? " is-active" : ""}`} href="#staff-tickets" aria-current={workspace === "staff" ? "page" : undefined} onClick={() => setMenuOpen(false)}>Staff Queue</a>
+                  {isAdmin && <a className={`nav-link${workspace === "admin" ? " is-active" : ""}`} href="#admin-users" aria-current={workspace === "admin" ? "page" : undefined} onClick={() => setMenuOpen(false)}>User Management</a>}
                 </>
               ) : (
                 <>
-                  <a className={`nav-link${workspace === "requester" && !createMode ? " is-active" : ""}`} href="#my-tickets" aria-current={workspace === "requester" && !createMode ? "page" : undefined}>My Tickets</a>
-                  <a className={`nav-link${createMode ? " is-active" : ""}`} href="#create-ticket" aria-current={createMode ? "page" : undefined}>Create Ticket</a>
+                  <a className={`nav-link${workspace === "requester" && !createMode ? " is-active" : ""}`} href="#my-tickets" aria-current={workspace === "requester" && !createMode ? "page" : undefined} onClick={() => setMenuOpen(false)}>My Tickets</a>
+                  <a className={`nav-link${createMode ? " is-active" : ""}`} href="#create-ticket" aria-current={createMode ? "page" : undefined} onClick={() => setMenuOpen(false)}>Create Ticket</a>
                 </>
               )}
               <span className="requester-context" aria-label="Current User">{session.user.name} <span className="role-badge">{roleLabel[session.user.role]}</span></span>
