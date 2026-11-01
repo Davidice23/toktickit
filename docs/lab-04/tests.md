@@ -267,6 +267,8 @@ Exact-head run [41298666014](https://github.com/Davidice23/toktickit/actions/run
 
 The local worktree is on `feature/68-role-dashboards-ui`, based on the #82 feature head `06560fc6c8fea5de99a0d841ef079d806c54b7c9`; GitHub confirms PR #82 is merged into `lab4-staging` as merge commit `9d186fb26b44380c4f9b38056c650ad4e91adc3e`. A Git fetch was unavailable in this environment, so the branch was not rebased from a freshly fetched staging ref. No personal/local database was started or accessed.
 
+The tested implementation is recorded at commit `82a315b36483ed84be87a216d7a9fc7122712fd2` (the commands below ran against the identical worktree immediately before that local commit).
+
 `npm --prefix client test -- --reporter=dot` passed **42/42 tests across 17 files**. `npm --prefix client run test:lab4 -- --reporter=dot` passed **18/18 tests across 5 files**. `npm --prefix client run build` and `npm --prefix server run build` passed. `npm --prefix e2e run test:lab4 -- --list` discovered **4 tests across 3 files**, including the new role-dashboard flow. `git diff --check` passed. The E2E browser tests were discovered but not executed locally because they require the isolated disposable-PostgreSQL CI environment; manual visual/accessibility review and exact-PR-head CI remain pending.
 
 ### 5.6 Exact-main release evidence
