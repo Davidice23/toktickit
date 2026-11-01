@@ -165,11 +165,18 @@ describe.sequential("Lab 4 Ticket workflow API", () => {
     const ticket = await makeTicket("OPEN");
     const advisory = await requester.agent.post(`/api/tickets/${ticket.id}/requester-resolution`).set("X-CSRF-Token", requester.csrfToken).send({});
     expect(advisory.status).toBe(200);
+    const detail = await requester.agent.get(`/api/tickets/${ticket.id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.data).toMatchObject({
+      requesterConfirmedResolved: true,
+      requesterConfirmedResolvedAt: expect.any(String),
+    });
     expect((await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } })).currentStatus).toBe("OPEN");
     const denied = await requester.agent.patch(`/api/staff/tickets/${ticket.id}/status`).set("X-CSRF-Token", requester.csrfToken).send({ expectedTicketVersion: 1, status: "IN_PROGRESS" });
     expect(denied.status).toBe(403);
     const otherDenied = await otherRequester.agent.post(`/api/tickets/${ticket.id}/requester-resolution`).set("X-CSRF-Token", otherRequester.csrfToken).send({});
     expect(otherDenied.status).toBe(404);
+    expect((await otherRequester.agent.get(`/api/tickets/${ticket.id}`)).status).toBe(404);
   });
 
   it("enforces session, role, and CSRF for Ticket mutations", async () => {
