@@ -7,6 +7,16 @@ const viewports = [
   { width: 390, height: 844 },
 ];
 
+function contrastRatio(first: string, second: string): number {
+  const luminance = (color: string) => {
+    const channels = color.replace("#", "").match(/.{2}/g)!.map((channel) => parseInt(channel, 16) / 255);
+    const linear = channels.map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2);
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  };
+  const [lighter, darker] = [luminance(first), luminance(second)].sort((a, b) => b - a);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 async function captureDashboard(page: Page, testInfo: TestInfo, role: string) {
   const original = page.viewportSize();
   try {
@@ -15,6 +25,20 @@ async function captureDashboard(page: Page, testInfo: TestInfo, role: string) {
       await expect(page.getByRole("heading", { name: role === "requester" ? "Requester Dashboard" : "Staff Dashboard" })).toBeVisible();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow, `${role} dashboard overflows at ${viewport.width}px`).toBeLessThanOrEqual(1);
+      const palette = await page.evaluate(() => {
+        const styles = getComputedStyle(document.documentElement);
+        return {
+          secondary: styles.getPropertyValue("--color-secondary").trim(),
+          surface: styles.getPropertyValue("--color-surface").trim(),
+          paleGreen: styles.getPropertyValue("--color-pale-green").trim(),
+          focus: styles.getPropertyValue("--color-focus").trim(),
+          primary: styles.getPropertyValue("--color-primary").trim(),
+        };
+      });
+      expect(contrastRatio(palette.secondary, palette.surface), "dashboard link text on white cards").toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(palette.secondary, palette.paleGreen), "dashboard link text on pale-green surfaces").toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(palette.focus, palette.surface), "focus indicator against a white surface").toBeGreaterThanOrEqual(3);
+      expect(contrastRatio("#ffffff", palette.primary), "header focus indicator against the green header").toBeGreaterThanOrEqual(3);
       if (viewport.width === 390) {
         const menu = page.getByRole("button", { name: "Menu" });
         await menu.focus();
