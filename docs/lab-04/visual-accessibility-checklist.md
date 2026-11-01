@@ -4,10 +4,10 @@ This checklist records a human review of the exact PR head. Automated test outpu
 
 ## Review record
 
-- PR URL / code head: [PR #84](https://github.com/Davidice23/toktickit/pull/84) / `3e5bfa9fd825f0187cef85b6137baba177c0731c`
+- PR URL / code head: [PR #84](https://github.com/Davidice23/toktickit/pull/84) / `3f7623d57b347c2d9b0ed4f950331f47638eee86`
 - Reviewer and review date: **Pending**
 - Browser and version / OS / zoom: **Pending**
-- CI run and `lab4-browser-evidence` artifact: [run 41333174628](https://github.com/Davidice23/toktickit/actions/runs/41333174628) / [artifact 13094460468](https://github.com/Davidice23/toktickit/actions/runs/41333174628/artifacts/13094460468)
+- CI run and `lab4-browser-evidence` artifact: [run 41342097987](https://github.com/Davidice23/toktickit/actions/runs/41342097987) / [artifact 13098171329](https://github.com/Davidice23/toktickit/actions/runs/41342097987/artifacts/13098171329)
 - Outcome: **AUTOMATED ARTIFACT READY — human screenshot/keyboard review pending; do not mark this checklist complete yet**
 
 ## Screenshots to inspect
@@ -21,10 +21,10 @@ Open the exact-head `lab4-browser-evidence` artifact. For each screen below, ins
 | Administrator dashboard | `lab4-administrator-dashboard-{1440,820,390}.png` from `e2e/lab-04/dashboards.spec.ts` | Pending |
 | Staff Ticket detail with Actions workflow | `lab4-actions-staff-{1440,820,390}.png` from `e2e/lab-04/actions-taken-workflow.spec.ts` | Pending |
 | Requester Ticket detail, Actions read-only | `lab4-actions-requester-{1440,820,390}.png` from `e2e/lab-04/actions-taken-workflow.spec.ts` | Pending |
-| Requester resolution indication | `lab4-resolution-requester-advisory-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending human inspection of artifact 13094460468 |
-| Stale update safely refreshed and retried | `lab4-resolution-stale-update-recovered-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending human inspection of artifact 13094460468 |
-| Resolution blocked without completed Action | `lab4-resolution-blocked-resolution-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending human inspection of artifact 13094460468 |
-| Resolution succeeds with completed Action evidence | `lab4-resolution-resolved-with-evidence-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending human inspection of artifact 13094460468 |
+| Requester resolution indication | `lab4-resolution-requester-advisory-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Codex artifact-only visual preflight passed; human inspection pending |
+| Stale update safely refreshed and retried | `lab4-resolution-stale-update-recovered-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending human inspection of artifact 13098171329 |
+| Resolution blocked without completed Action | `lab4-resolution-blocked-resolution-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending human inspection of artifact 13098171329 |
+| Resolution succeeds with completed Action evidence | `lab4-resolution-resolved-with-evidence-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending human inspection of artifact 13098171329 |
 | Staff queue, Requester ticket list, and Administrator user management | `evidence-capture.spec.ts` artifacts in the same full browser run | Pending |
 
 ## Manual keyboard and accessibility checks
@@ -50,8 +50,7 @@ Do not mark the Lab 4 Hardening gate complete while the review record, screensho
 
 ## Codex artifact-only visual preflight (not a human review)
 
-- Inspected artifact: [run 41333174628](https://github.com/Davidice23/toktickit/actions/runs/41333174628) / [artifact 13094460468](https://github.com/Davidice23/toktickit/actions/runs/41333174628/artifacts/13094460468); archive SHA-256 verified as `40ff04201157322be7daf62da67fba02e11ebb306e19802de2371ffc79201225`.
-- Scope: all 9 dashboard screenshots, 6 Actions detail screenshots, and 12 Ticket-resolution screenshots at 1440px, 820px, and 390px.
-- Dashboard, Staff detail, and resolution states: no obvious card overlap, horizontal clipping, or inaccessible off-screen primary control was visible in the captured viewports. At 820px, some headings/navigation labels wrap but remain readable.
-- Finding: Requester detail screenshots `lab4-actions-requester-{1440,820}.png` and `lab4-resolution-requester-advisory-{1440,820}.png` show the public-comment label, native-sized textarea, and submit button crowded on one line. At 390px the same form stacks. A responsive grid and full-width styled textarea were added to `client/src/styles.css`; this finding is **not yet verified fixed** until a new exact-head CI screenshot artifact is inspected.
-- Result: **Codex preflight in progress; exact-head re-capture pending.** This automated image inspection does not satisfy the human screenshot, keyboard, accessibility, or zoom checklist above. Human reviewer, browser/OS, keyboard test, and manual checklist remain pending.
+- Inspected artifact: [run 41342097987](https://github.com/Davidice23/toktickit/actions/runs/41342097987) / [artifact 13098171329](https://github.com/Davidice23/toktickit/actions/runs/41342097987/artifacts/13098171329); archive SHA-256 verified as `4d80b9b7169b3da1aeda5dd482bb98088448cb1d466393da15a435a2341c5357`.
+- Artifact inventory: 27 screenshots total — 9 dashboard, 6 Actions detail, and 12 Ticket-resolution screenshots, generated at 1440px, 820px, and 390px where applicable.
+- Focused recheck: inspected `lab4-actions-requester-{1440,820,390}.png` and `lab4-resolution-requester-advisory-{1440,820,390}.png`. The prior 1440px/820px crowding finding is resolved in the exact-head artifact: each form label, textarea, and action buttons occupy separate vertical rows; no visible overlap or clipping was found. The 390px layout remains stacked and readable.
+- Result: **Codex artifact-only preflight passed for the six updated Requester captures.** It does not satisfy the human screenshot, keyboard, accessibility, or zoom checklist above. Human reviewer, browser/OS, keyboard test, and manual checklist remain pending; do not mark the hardening gate complete.
