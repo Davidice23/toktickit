@@ -76,8 +76,8 @@ test("requester resolution indication stays advisory and staff resolve only afte
   await refreshedStaffRow.getByRole("button", { name: "Open Detail" }).click();
 
   await expect(page.locator(".detail-grid")).toContainText("Requester indicated resolved");
-  await expect(page.getByText(/Resolving a Ticket requires an active operational owner/)).toBeVisible();
   await page.getByLabel("Next status").selectOption("RESOLVED");
+  await expect(page.getByText(/Resolving a Ticket requires an active operational owner/)).toBeVisible();
 
   // Change the Ticket from a separate authenticated browser context so this
   // page must handle a real stale workflow version, not a sequential mock.
