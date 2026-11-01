@@ -64,7 +64,6 @@ test("requester resolution indication stays advisory and staff resolve only afte
   await page.getByRole("button", { name: /This problem appears resolved/ }).click();
   await expect(page.getByRole("button", { name: "Resolution Indicated" })).toBeDisabled();
   await expect(page.locator(".detail-grid")).toContainText("IN_PROGRESS");
-  await expect(page.locator(".detail-grid")).toContainText("Requester indicated resolved");
   await captureEvidence(page, testInfo, "requester-advisory");
   await signOut(page);
 
@@ -76,6 +75,7 @@ test("requester resolution indication stays advisory and staff resolve only afte
   await expect(refreshedStaffRow).toBeVisible();
   await refreshedStaffRow.getByRole("button", { name: "Open Detail" }).click();
 
+  await expect(page.locator(".detail-grid")).toContainText("Requester indicated resolved");
   await expect(page.getByText(/Resolving a Ticket requires an active operational owner/)).toBeVisible();
   await page.getByLabel("Next status").selectOption("RESOLVED");
 
