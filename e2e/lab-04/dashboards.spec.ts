@@ -27,7 +27,12 @@ async function captureDashboard(page: Page, testInfo: TestInfo, role: string) {
         expect(focusColor, "keyboard focus in the green header must remain clearly visible").toBe("rgb(255, 255, 255)");
         await page.keyboard.press("Enter");
         await expect(menu).toHaveAttribute("aria-expanded", "false");
+        await menu.focus();
+        await page.keyboard.press("Enter");
+        await expect(menu).toHaveAttribute("aria-expanded", "true");
         await expect(dashboardLink).toHaveAttribute("aria-current", "page");
+        await page.keyboard.press("Enter");
+        await expect(menu).toHaveAttribute("aria-expanded", "false");
       }
       await page.screenshot({ path: testInfo.outputPath(`lab4-${role}-dashboard-${viewport.width}.png`), fullPage: true });
     }
