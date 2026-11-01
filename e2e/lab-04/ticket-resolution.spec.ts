@@ -140,7 +140,7 @@ test("requester resolution indication stays advisory and staff resolve only afte
   await expect(page.getByRole("alert")).toHaveCount(0);
   await page.getByRole("button", { name: "Show history" }).click();
   await expect(page.getByText(/IN_PROGRESS → RESOLVED/)).toBeVisible();
-  await expect(page.getByText(new RegExp(result))).toBeVisible();
+  await expect(page.getByText(result, { exact: true })).toBeVisible();
   await captureEvidence(page, testInfo, "resolved-with-evidence");
   await signOut(page);
 });
