@@ -199,6 +199,7 @@ export interface StaffTicketDetail extends Omit<TicketDetail, "itPriority" | "pu
 export type ActionStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 export interface OperationalUserOption { id: number; name: string; role: "IT_STAFF" | "ADMINISTRATOR" }
 export interface OperationalUserPage { data: OperationalUserOption[]; meta: TicketList["meta"] }
+export interface ActionUser { id: number; name: string; role?: "IT_STAFF" | "ADMINISTRATOR" }
 export interface ActionTaken {
   id: number;
   ticketId: number;
@@ -214,8 +215,8 @@ export interface ActionTaken {
   version: number;
   createdAt: string;
   updatedAt: string;
-  assignee: OperationalUserOption;
-  performedBy: OperationalUserOption | null;
+  assignee: ActionUser;
+  performedBy: ActionUser | null;
 }
 export interface ActionPage { data: ActionTaken[]; meta: TicketList["meta"] }
 export interface TicketHistoryEntry {

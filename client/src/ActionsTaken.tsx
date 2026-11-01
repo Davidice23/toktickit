@@ -339,7 +339,7 @@ export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticket
       <div className="action-card-heading"><div><span className="status-badge">{action.status.replaceAll("_", " ")}</span><span className="helper-text"> Action #{action.id}</span></div><p className="helper-text">Created {formatDate(action.createdAt)}</p></div>
       <dl className="action-detail-grid">
         <div><dt>Description</dt><dd className="preserve-text">{action.description}</dd></div>
-        <div><dt>Assignee</dt><dd>{action.assignee.name} ({action.assignee.role.replaceAll("_", " ")})</dd></div>
+        <div><dt>Assignee</dt><dd>{action.assignee.name}{isStaff && action.assignee.role ? ` (${action.assignee.role.replaceAll("_", " ")})` : ""}</dd></div>
         <div><dt>Performed by</dt><dd>{action.performedBy?.name ?? "Pending completion"}</dd></div>
         <div><dt>Action date/time</dt><dd>{formatDate(action.actionAt)}</dd></div>
         {action.result && <div><dt>Result</dt><dd className="preserve-text">{action.result}</dd></div>}

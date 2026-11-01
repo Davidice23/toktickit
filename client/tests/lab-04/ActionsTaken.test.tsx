@@ -18,11 +18,14 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("Lab 4 Actions Taken UI", () => {
   it("shows Requester Actions as safe read-only records", async () => {
-    vi.spyOn(api, "fetchRequesterActions").mockResolvedValue({ data: [plannedAction], meta: { ...meta, totalItems: 1, totalPages: 1 } });
+    const requesterSafeAction: api.ActionTaken = { ...plannedAction, assignee: { id: 8, name: "Staff User" } };
+    vi.spyOn(api, "fetchRequesterActions").mockResolvedValue({ data: [requesterSafeAction], meta: { ...meta, totalItems: 1, totalPages: 1 } });
     vi.spyOn(api, "fetchStaffTicketHistory").mockResolvedValue({ data: [], meta });
     render(<ActionsTaken ticketId={18} role="requester" ticketStatus="OPEN" />);
 
     expect(await screen.findByText("Collect browser diagnostics")).toBeInTheDocument();
+    expect(screen.getByText("Staff User")).toBeInTheDocument();
+    expect(screen.queryByText(/IT STAFF|ADMINISTRATOR/)).not.toBeInTheDocument();
     expect(screen.getAllByText("Pending completion")).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "Actions Taken (read-only)" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add Action" })).not.toBeInTheDocument();
