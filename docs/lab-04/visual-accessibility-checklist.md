@@ -47,3 +47,11 @@ Record each issue with the screen, viewport, reproduction steps, severity, and l
 | Pending review | — | — | — | — |
 
 Do not mark the Lab 4 Hardening gate complete while the review record, screenshot inspection, or any required follow-up remains pending.
+
+## Codex artifact-only visual preflight (not a human review)
+
+- Inspected artifact: [run 41333174628](https://github.com/Davidice23/toktickit/actions/runs/41333174628) / [artifact 13094460468](https://github.com/Davidice23/toktickit/actions/runs/41333174628/artifacts/13094460468); archive SHA-256 verified as `40ff04201157322be7daf62da67fba02e11ebb306e19802de2371ffc79201225`.
+- Scope: all 9 dashboard screenshots, 6 Actions detail screenshots, and 12 Ticket-resolution screenshots at 1440px, 820px, and 390px.
+- Dashboard, Staff detail, and resolution states: no obvious card overlap, horizontal clipping, or inaccessible off-screen primary control was visible in the captured viewports. At 820px, some headings/navigation labels wrap but remain readable.
+- Finding: Requester detail screenshots `lab4-actions-requester-{1440,820}.png` and `lab4-resolution-requester-advisory-{1440,820}.png` show the public-comment label, native-sized textarea, and submit button crowded on one line. At 390px the same form stacks. A responsive grid and full-width styled textarea were added to `client/src/styles.css`; this finding is **not yet verified fixed** until a new exact-head CI screenshot artifact is inspected.
+- Result: **Codex preflight in progress; exact-head re-capture pending.** This automated image inspection does not satisfy the human screenshot, keyboard, accessibility, or zoom checklist above. Human reviewer, browser/OS, keyboard test, and manual checklist remain pending.
