@@ -65,6 +65,32 @@ describe("Lab 4 Actions Taken UI", () => {
     expect(fetchActions).toHaveBeenCalledTimes(2);
   });
 
+  it("refreshes Ticket history when the workflow version changes", async () => {
+    vi.spyOn(api, "fetchStaffActions").mockResolvedValue({ data: [], meta });
+    const fetchHistory = vi.spyOn(api, "fetchStaffTicketHistory")
+      .mockResolvedValueOnce({ data: [], meta })
+      .mockResolvedValueOnce({
+        data: [{
+          id: "ticket:7", source: "TICKET", actionId: null, kind: "STATUS_CHANGED",
+          fromStatus: "IN_PROGRESS", toStatus: "RESOLVED", fieldName: null, oldValue: null,
+          newValue: null, reason: null, confirmation: null,
+          actor: { id: 3, name: "Staff User", role: "IT_STAFF" }, createdAt: "2026-11-02T08:00:00.000Z",
+        }],
+        meta: { ...meta, totalItems: 1, totalPages: 1 },
+      });
+    vi.spyOn(api, "fetchOperationalUsers").mockResolvedValue({ data: [], meta });
+    const user = userEvent.setup();
+    const { rerender } = render(<ActionsTaken ticketId={18} role="staff" ticketVersion={4} ticketStatus="IN_PROGRESS" />);
+
+    await waitFor(() => expect(fetchHistory).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("button", { name: "Show history" }));
+    expect(await screen.findByText("No workflow history has been recorded.")).toBeInTheDocument();
+
+    rerender(<ActionsTaken ticketId={18} role="staff" ticketVersion={5} ticketStatus="RESOLVED" />);
+    expect(await screen.findByText("IN_PROGRESS → RESOLVED")).toBeInTheDocument();
+    expect(fetchHistory).toHaveBeenCalledTimes(2);
+  });
+
   it("follows a dashboard-selected Action across bounded pages and restores focus to it", async () => {
     const selected = { ...plannedAction, id: 99, description: "Follow dashboard-selected work" };
     const fetchActions = vi.spyOn(api, "fetchStaffActions")

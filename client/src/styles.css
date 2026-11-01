@@ -70,6 +70,10 @@ h2 { margin-top: 32px; font-size: 1.25rem; }
 .ticket-detail .detail-section h3, .ticket-detail .detail-section p, .ticket-detail .detail-section li, .ticket-detail .detail-grid dd { overflow-wrap: anywhere; }
 .ticket-detail button { max-width: 100%; white-space: normal; }
 .ticket-detail input[type="file"] { max-width: 100%; }
+.ticket-detail .detail-section form { display: grid; gap: 8px; }
+.ticket-detail .detail-section form label { font-weight: 600; }
+.ticket-detail .detail-section form textarea { width: 100%; min-height: 90px; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text); background: var(--color-surface); font: inherit; resize: vertical; }
+.ticket-detail .detail-section form .btn { width: fit-content; }
 .detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .detail-grid > div { padding: 14px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); }
 .detail-grid dt { color: var(--color-text-muted); font-size: .85rem; font-weight: 600; }
