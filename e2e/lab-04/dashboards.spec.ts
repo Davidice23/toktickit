@@ -15,6 +15,20 @@ async function captureDashboard(page: Page, testInfo: TestInfo, role: string) {
       await expect(page.getByRole("heading", { name: role === "requester" ? "Requester Dashboard" : "Staff Dashboard" })).toBeVisible();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow, `${role} dashboard overflows at ${viewport.width}px`).toBeLessThanOrEqual(1);
+      if (viewport.width === 390) {
+        const menu = page.getByRole("button", { name: "Menu" });
+        await menu.focus();
+        await page.keyboard.press("Enter");
+        await expect(menu).toHaveAttribute("aria-expanded", "true");
+        await page.keyboard.press("Tab");
+        const dashboardLink = page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Dashboard" });
+        await expect(dashboardLink).toBeFocused();
+        const focusColor = await dashboardLink.evaluate((element) => getComputedStyle(element).outlineColor);
+        expect(focusColor, "keyboard focus in the green header must remain clearly visible").toBe("rgb(255, 255, 255)");
+        await page.keyboard.press("Enter");
+        await expect(menu).toHaveAttribute("aria-expanded", "false");
+        await expect(dashboardLink).toHaveAttribute("aria-current", "page");
+      }
       await page.screenshot({ path: testInfo.outputPath(`lab4-${role}-dashboard-${viewport.width}.png`), fullPage: true });
     }
   } finally {

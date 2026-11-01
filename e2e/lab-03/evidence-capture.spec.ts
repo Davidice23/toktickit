@@ -28,7 +28,10 @@ for (const [size, width, height] of [["desktop", 1440, 900], ["tablet", 820, 900
   test(`capture major Lab 3 screens at ${size} width`, async ({ page }) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width, height });
-    await signIn(page, "admin@example.test", /Administrator workspace/);
+    await signIn(page, "admin@example.test", /Staff operations workspace/);
+    const menu = page.getByRole("button", { name: "Menu" });
+    if (await menu.isVisible()) await menu.click();
+    await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "User Management" }).click();
     await expect(page.getByRole("heading", { name: "User Management" })).toBeVisible();
     await expect(page.getByText("Loading Users...")).toBeHidden();
     await capture(page, "user-management", `${size}-list.png`);
@@ -40,11 +43,11 @@ for (const [size, width, height] of [["desktop", 1440, 900], ["tablet", 820, 900
       await page.getByRole("button", { name: "Create User" }).first().click();
       await page.getByRole("button", { name: "Create User", exact: true }).last().scrollIntoViewIfNeeded();
       await capture(page, "user-management", "desktop-create.png");
+      await page.getByRole("button", { name: "Cancel" }).click();
     }
 
-    const menu = page.getByRole("button", { name: "Menu" });
     if (await menu.isVisible()) await menu.click();
-    await page.getByRole("link", { name: "Staff Queue" }).click();
+    await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Staff Queue" }).click();
     const fixtureRow = page.getByRole("row").filter({ hasText: "L3-DEMO-003" });
     await expect(fixtureRow).toBeVisible();
     await capture(page, "staff-queue", `${size}-queue.png`);
@@ -58,6 +61,8 @@ for (const [size, width, height] of [["desktop", 1440, 900], ["tablet", 820, 900
     await signOut(page);
 
     await signIn(page, "anan.chaiya@example.test", /Requester workspace/);
+    if (await menu.isVisible()) await menu.click();
+    await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "My Tickets" }).click();
     await expect(page.getByRole("heading", { name: "My Tickets" })).toBeVisible();
     await capture(page, "authentication", `${size}-requester-workspace.png`);
     await signOut(page);

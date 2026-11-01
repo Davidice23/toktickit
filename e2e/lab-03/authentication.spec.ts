@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { signIn, signOut } from "./helpers";
 
-test("active Administrator can sign in, reach the role workspace, and log out", async ({ page }) => {
-  await signIn(page, "admin@example.test", /Administrator workspace/);
-  await expect(page.getByRole("link", { name: "User Management" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Staff Queue" })).toBeVisible();
+test("active Administrator can sign in to the Staff Dashboard, access admin navigation, and log out", async ({ page }) => {
+  await signIn(page, "admin@example.test", /Staff operations workspace/);
+  await expect(page.getByRole("heading", { name: "Staff Dashboard" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "User Management" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Staff Queue" })).toBeVisible();
   await signOut(page);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Sign in to TokTickIT" })).toBeVisible();
@@ -26,7 +27,8 @@ test("invalid and inactive credentials receive the same safe feedback", async ({
 
 test("an initial password blocks navigation until a valid replacement is saved", async ({ page }) => {
   const email = `e2e-first-login-${Date.now()}@example.test`;
-  await signIn(page, "admin@example.test", /Administrator workspace/);
+  await signIn(page, "admin@example.test", /Staff operations workspace/);
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "User Management" }).click();
   await page.getByRole("button", { name: "Create User" }).first().click();
   await page.getByLabel("Name", { exact: true }).fill("First Login E2E User");
   await page.getByLabel("Email", { exact: true }).fill(email);
@@ -45,5 +47,7 @@ test("an initial password blocks navigation until a valid replacement is saved",
   await page.getByLabel("New password", { exact: true }).fill(process.env.LAB3_E2E_PASSWORD ?? "Lab3-E2E-password!2026");
   await page.getByLabel("Confirm new password").fill(process.env.LAB3_E2E_PASSWORD ?? "Lab3-E2E-password!2026");
   await page.getByRole("button", { name: "Save password" }).click();
+  await expect(page.getByRole("heading", { name: "Staff Dashboard" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Staff Queue" }).click();
   await expect(page.getByRole("heading", { name: "Staff Ticket Queue" })).toBeVisible();
 });

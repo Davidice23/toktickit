@@ -15,7 +15,8 @@ test("anonymous users see the sign-in page and cannot call a protected API", asy
 test("a seeded requester can sign in, reach My Tickets, and sign out", async ({ page }) => {
   await signIn(page, "anan.chaiya@example.test", /Requester workspace/);
 
-  await expect(page.getByRole("link", { name: "My Tickets" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "My Tickets", exact: true })).toBeVisible();
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "My Tickets", exact: true }).click();
   await expect(page.getByRole("heading", { name: "My Tickets" })).toBeVisible();
 
   await signOut(page);
