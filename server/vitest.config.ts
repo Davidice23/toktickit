@@ -4,5 +4,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // Integration tests share the disposable PostgreSQL database; serialize files
+    // so concurrent fixture writes cannot make cross-request count oracles flaky.
+    fileParallelism: false,
   },
 });
