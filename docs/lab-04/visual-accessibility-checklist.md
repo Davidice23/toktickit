@@ -4,11 +4,11 @@ This checklist records a human review of the exact PR head. Automated test outpu
 
 ## Review record
 
-- PR URL / head SHA: **Pending Issue #73 PR**
+- PR URL / code head: [PR #84](https://github.com/Davidice23/toktickit/pull/84) / `3e5bfa9fd825f0187cef85b6137baba177c0731c`
 - Reviewer and review date: **Pending**
 - Browser and version / OS / zoom: **Pending**
-- CI run and `lab4-browser-evidence` artifact: **Pending exact-head CI**
-- Outcome: **NOT REVIEWED — do not mark this checklist complete yet**
+- CI run and `lab4-browser-evidence` artifact: [run 41333174628](https://github.com/Davidice23/toktickit/actions/runs/41333174628) / [artifact 13094460468](https://github.com/Davidice23/toktickit/actions/runs/41333174628/artifacts/13094460468)
+- Outcome: **AUTOMATED ARTIFACT READY — human screenshot/keyboard review pending; do not mark this checklist complete yet**
 
 ## Screenshots to inspect
 
@@ -21,10 +21,10 @@ Open the exact-head `lab4-browser-evidence` artifact. For each screen below, ins
 | Administrator dashboard | `lab4-administrator-dashboard-{1440,820,390}.png` from `e2e/lab-04/dashboards.spec.ts` | Pending |
 | Staff Ticket detail with Actions workflow | `lab4-actions-staff-{1440,820,390}.png` from `e2e/lab-04/actions-taken-workflow.spec.ts` | Pending |
 | Requester Ticket detail, Actions read-only | `lab4-actions-requester-{1440,820,390}.png` from `e2e/lab-04/actions-taken-workflow.spec.ts` | Pending |
-| Requester resolution indication | `lab4-resolution-requester-advisory-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending exact-head CI |
-| Stale update safely refreshed and retried | `lab4-resolution-stale-update-recovered-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending exact-head CI |
-| Resolution blocked without completed Action | `lab4-resolution-blocked-resolution-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending exact-head CI |
-| Resolution succeeds with completed Action evidence | `lab4-resolution-resolved-with-evidence-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending exact-head CI |
+| Requester resolution indication | `lab4-resolution-requester-advisory-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending human inspection of artifact 13094460468 |
+| Stale update safely refreshed and retried | `lab4-resolution-stale-update-recovered-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending human inspection of artifact 13094460468 |
+| Resolution blocked without completed Action | `lab4-resolution-blocked-resolution-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending human inspection of artifact 13094460468 |
+| Resolution succeeds with completed Action evidence | `lab4-resolution-resolved-with-evidence-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending human inspection of artifact 13094460468 |
 | Staff queue, Requester ticket list, and Administrator user management | `evidence-capture.spec.ts` artifacts in the same full browser run | Pending |
 
 ## Manual keyboard and accessibility checks
