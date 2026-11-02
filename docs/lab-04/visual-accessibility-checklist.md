@@ -4,11 +4,11 @@ This checklist records a human review of the exact PR head. Automated test outpu
 
 ## Review record
 
-- PR URL / code head: [PR #84](https://github.com/Davidice23/toktickit/pull/84) / `3f7623d57b347c2d9b0ed4f950331f47638eee86`
-- Reviewer and review date: **Pending**
-- Browser and version / OS / zoom: **Pending**
-- CI run and `lab4-browser-evidence` artifact: [run 41342097987](https://github.com/Davidice23/toktickit/actions/runs/41342097987) / [artifact 13098171329](https://github.com/Davidice23/toktickit/actions/runs/41342097987/artifacts/13098171329)
-- Outcome: **AUTOMATED ARTIFACT READY — human screenshot/keyboard review pending; do not mark this checklist complete yet**
+- PR URLs / code heads: [PR #84](https://github.com/Davidice23/toktickit/pull/84) / `3f7623d57b347c2d9b0ed4f950331f47638eee86`; [PR #85](https://github.com/Davidice23/toktickit/pull/85) / `1cb379ad8d7912c9a1552e6afd39b6d102cd556e` (both merged to `lab4-staging`)
+- Reviewer and review date for the **full manual checklist**: **Pending**. Sxr1n approved PR #85 code; that approval is not a substitute for this checklist.
+- Browser and version / OS / zoom for full manual checklist: **Pending**
+- CI run and `lab4-browser-evidence` artifact: [run 41445516577](https://github.com/Davidice23/toktickit/actions/runs/41445516577) / [artifact 13142202669](https://github.com/Davidice23/toktickit/actions/runs/41445516577/artifacts/13142202669); the downloaded 27-screenshot artifact used for Codex preflight is [run 41342097987](https://github.com/Davidice23/toktickit/actions/runs/41342097987) / [artifact 13098171329](https://github.com/Davidice23/toktickit/actions/runs/41342097987/artifacts/13098171329)
+- Outcome: **Automated regression and partial Codex screenshot preflight passed. Learner visually accepted the login-form spacing fix. Full human screenshot/keyboard/semantic-accessibility/zoom review is still pending; do not mark this checklist complete.**
 
 ## Screenshots to inspect
 
@@ -22,6 +22,7 @@ Open the exact-head `lab4-browser-evidence` artifact. For each screen below, ins
 | Staff Ticket detail with Actions workflow | `lab4-actions-staff-{1440,820,390}.png` from `e2e/lab-04/actions-taken-workflow.spec.ts` | Pending |
 | Requester Ticket detail, Actions read-only | `lab4-actions-requester-{1440,820,390}.png` from `e2e/lab-04/actions-taken-workflow.spec.ts` | Pending |
 | Requester resolution indication | `lab4-resolution-requester-advisory-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Codex artifact-only visual preflight passed; human inspection pending |
+| Signed-out login form | Learner-inspected local preview after PR #85 spacing change; no CI screenshot is attached for this view | Learner accepted the revised label/input spacing; browser/version/zoom and keyboard checks are not recorded |
 | Stale update safely refreshed and retried | `lab4-resolution-stale-update-recovered-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending human inspection of artifact 13098171329 |
 | Resolution blocked without completed Action | `lab4-resolution-blocked-resolution-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending human inspection of artifact 13098171329 |
 | Resolution succeeds with completed Action evidence | `lab4-resolution-resolved-with-evidence-{1440,820,390}.png` from `e2e/lab-04/ticket-resolution.spec.ts` | Pending human inspection of artifact 13098171329 |
@@ -53,4 +54,5 @@ Do not mark the Lab 4 Hardening gate complete while the review record, screensho
 - Inspected artifact: [run 41342097987](https://github.com/Davidice23/toktickit/actions/runs/41342097987) / [artifact 13098171329](https://github.com/Davidice23/toktickit/actions/runs/41342097987/artifacts/13098171329); archive SHA-256 verified as `4d80b9b7169b3da1aeda5dd482bb98088448cb1d466393da15a435a2341c5357`.
 - Artifact inventory: 27 screenshots total — 9 dashboard, 6 Actions detail, and 12 Ticket-resolution screenshots, generated at 1440px, 820px, and 390px where applicable.
 - Focused recheck: inspected `lab4-actions-requester-{1440,820,390}.png` and `lab4-resolution-requester-advisory-{1440,820,390}.png`. The prior 1440px/820px crowding finding is resolved in the exact-head artifact: each form label, textarea, and action buttons occupy separate vertical rows; no visible overlap or clipping was found. The 390px layout remains stacked and readable.
-- Result: **Codex artifact-only preflight passed for the six updated Requester captures.** It does not satisfy the human screenshot, keyboard, accessibility, or zoom checklist above. Human reviewer, browser/OS, keyboard test, and manual checklist remain pending; do not mark the hardening gate complete.
+- Additional inspection on 2026-11-02: Codex reviewed the 1440px and 390px dashboard captures for Requester, Staff, and Administrator; 1440px and 390px Staff and Requester Ticket/Actions detail; the 820px Requester detail; all four 390px Ticket-resolution states (advisory, stale-update recovery, blocked, and resolved); and the 1440px resolved-with-evidence state. No obvious overlap, clipping, or horizontal overflow was visible in those screenshots. The 390px views use stacked cards; the Requester view shows Actions as read-only and does not expose Staff operational controls or Internal Notes; the blocked/stale states include explanatory text and the resolved state displays workflow history. This assessment is static-image-only and does not test keyboard behavior, screen-reader semantics, focus order, color contrast, or 200% zoom.
+- Result: **Codex artifact-only visual preflight passed for the inspected screenshots.** It does not satisfy the human screenshot, keyboard, accessibility, or zoom checklist above. The login form was separately visually accepted by the learner after the spacing fix, but the full manual review record, browser/OS details, keyboard test, and zoom check remain pending; do not mark the hardening gate complete.
