@@ -90,13 +90,17 @@ function LoginPanel({ onSuccess }: { onSuccess: (session: AuthSession) => void }
   }
 
   return (
-    <form className="requester-card" onSubmit={submit} aria-labelledby="login-heading">
+    <form className="requester-card login-form" onSubmit={submit} aria-labelledby="login-heading">
       <h2 id="login-heading">Sign in to TokTickIT</h2>
       <p className="helper-text">Use your authenticated account to access the workspace for your role.</p>
-      <label htmlFor="login-email">Email</label>
-      <input id="login-email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
-      <label htmlFor="login-password">Password</label>
-      <input id="login-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+      <div className="login-field">
+        <label htmlFor="login-email">Email</label>
+        <input id="login-email" type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
+      </div>
+      <div className="login-field">
+        <label htmlFor="login-password">Password</label>
+        <input id="login-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+      </div>
       {error && <div className="state-callout state-error" role="alert">{error}</div>}
       <button className="btn btn-primary-green" type="submit" disabled={submitting}>{submitting ? "Signing in..." : "Sign in"}</button>
     </form>
