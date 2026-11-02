@@ -30,6 +30,24 @@ async function captureResponsiveEvidence(page: Page, testInfo: TestInfo, role: s
         return { amount: document.documentElement.scrollWidth - viewportWidth, offenders };
       });
       expect(layout.amount, `${role} view should not overflow at ${viewport.width}px; offending elements: ${JSON.stringify(layout.offenders)}`).toBeLessThanOrEqual(1);
+      if (role === "requester") {
+        const commentFormLayout = await page.locator(".ticket-detail .detail-section form").evaluate((form) => {
+          const label = form.querySelector("label");
+          const textarea = form.querySelector("textarea");
+          if (!label || !textarea) return null;
+          return {
+            display: getComputedStyle(form).display,
+            labelBottom: label.getBoundingClientRect().bottom,
+            textareaTop: textarea.getBoundingClientRect().top,
+            textareaWidth: textarea.getBoundingClientRect().width,
+            formWidth: form.getBoundingClientRect().width,
+          };
+        });
+        expect(commentFormLayout, "Requester public-comment form should have its label and textarea").not.toBeNull();
+        expect(commentFormLayout?.display, "Requester public-comment controls should be laid out vertically").toBe("grid");
+        expect(commentFormLayout?.labelBottom, "Comment label should not share a row with the textarea").toBeLessThanOrEqual((commentFormLayout?.textareaTop ?? 0) + 1);
+        expect(commentFormLayout?.textareaWidth, "Comment textarea should fill the available form width").toBeGreaterThanOrEqual((commentFormLayout?.formWidth ?? 0) - 2);
+      }
       await page.screenshot({ path: testInfo.outputPath(`lab4-actions-${role}-${viewport.width}.png`), fullPage: true });
     }
   } finally {

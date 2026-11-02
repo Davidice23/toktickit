@@ -397,6 +397,8 @@ app.get("/api/tickets/:ticketId", requireSession, requireNormalSession, requireR
       where: { id: ticketId, requesterId },
       select: {
         ...ticketDetailSelect,
+        requesterConfirmedResolved: true,
+        requesterConfirmedResolvedAt: true,
         attachments: {
           select: { id: true, ticketId: true, originalName: true, mimeType: true, sizeBytes: true, uploadedAt: true, removedAt: true, removedReason: true },
           orderBy: [{ uploadedAt: "asc" }, { id: "asc" }],

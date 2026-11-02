@@ -55,6 +55,8 @@ jobs:
         run: npm test
       - name: Run Lab 4 server smoke suite explicitly
         run: npm run test:lab4
+      - name: Run observation-only dashboard performance smoke test
+        run: npm run test:lab4:perf
 
   lab4-client:
     name: Lab 4 client regression and smoke

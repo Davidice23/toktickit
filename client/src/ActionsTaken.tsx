@@ -127,10 +127,13 @@ export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticket
   useEffect(() => {
     void loadActions();
     if (isStaff) {
-      void loadHistory();
       void loadDirectory(1, "");
     }
   }, [ticketId, role]);
+
+  useEffect(() => {
+    if (isStaff) void loadHistory();
+  }, [ticketId, isStaff, ticketVersion]);
 
   useEffect(() => {
     if (!focusActionId || !isStaff || actionState !== "ready" || !actionPage) return;
