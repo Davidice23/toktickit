@@ -160,5 +160,6 @@ jobs:
           path: |
             e2e/playwright-report
             e2e/test-results
+            artifacts/lab-03/screenshots
             /tmp/toktickit-server.log
           if-no-files-found: warn
