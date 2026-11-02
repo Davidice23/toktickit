@@ -1,7 +1,11 @@
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
-  testDir: "./lab-03",
+  // Keep Lab 3 regression coverage while allowing the Lab 4 suite to be
+  // selected independently by `npm run test:lab4`. Helpers do not use the
+  // `.spec.ts` suffix and therefore are not discovered as runnable tests.
+  testDir: ".",
+  testMatch: ["lab-03/**/*.spec.ts", "lab-04/**/*.spec.ts"],
   timeout: 30_000,
   fullyParallel: false,
   workers: 1,

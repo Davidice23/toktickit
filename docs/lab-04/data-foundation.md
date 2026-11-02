@@ -1,0 +1,138 @@
+# Lab 4 Data Foundation: migration, recovery, and synthetic fixtures
+
+Issue #70 introduces the additive persistence layer required before any Lab 4
+Action, workflow, or dashboard endpoint is implemented. It deliberately does
+not add runtime routes or UI controls.
+
+## What changes
+
+- `Ticket` gains `workflowVersion` (starting at `1`) and nullable `resolvedAt`.
+  Existing `updatedAt` remains an audit timestamp, not a concurrency token.
+- `ActionTaken` stores the current safe Action snapshot, its separate assignee,
+  automatic future performer, lifecycle fields, idempotency scope, request
+  fingerprint, and an Action-level version.
+- `ActionTakenEvent` and `TicketWorkflowEvent` provide append-only history.
+  Their foreign keys use `RESTRICT`, so audit records cannot be silently
+  orphaned by a delete.
+- Indexes cover a Ticket's deterministic Action/history order, active work per
+  assignee, completed work per performer, dashboard Ticket queries, and
+  idempotency lookup. These choices implement Contract rationales 2--4:
+  parent workflow coordination, append-only auditability, and stable
+  resolution/dashboard semantics.
+
+The migration only creates tables, types, indexes, and nullable/defaulted
+columns. It does not rename or rewrite `User`, `Ticket`, `Attachment`,
+`PublicComment`, or `InternalNote`; a legacy Ticket with no Action remains a
+valid row.
+
+## Safe migration and recovery procedure
+
+Run this only with a disposable PostgreSQL target. Never use `prisma db push`,
+`migrate reset`, or a shared/personal course database for this verification.
+
+1. Set a redacted, allowlisted `DATABASE_URL` that points to a disposable
+   database or isolated test schema.
+2. From `server`, run `npm run prisma:migrate:deploy`, followed by
+   `npm run prisma:seed`. Re-running either command must not create duplicate
+   Lab 4 fixture Actions.
+3. Run `npm run test:lab4`. The migration integration suite bootstraps a fresh
+   schema, upgrades a Lab 3-shaped source snapshot, rehydrates that verified
+   snapshot into a separate recovery schema, and checks user/Ticket IDs,
+   ownership, Attachment metadata and bytes, Public Comments, Internal Notes,
+   zero-Action legacy Tickets, new tables, and indexes.
+4. If a production-like migration fails after a verified backup, restore that
+   backup into a separate disposable target and execute the same integrity
+   checks. Do not roll back by deleting new data; prepare a reviewed forward
+   fix only after analysing the failure.
+
+The automated recovery test intentionally keeps all schemas uniquely named and
+drops only the schemas it created. It never targets a normal user schema.
+
+## Fixture policy
+
+### Issue #66 proposed idempotency receipt migration
+
+`20261030020000_lab4_action_create_receipts` adds a separate
+`ActionCreateReceipt` table keyed by Action ID with a `RESTRICT` foreign key.
+The service writes the initial safe JSON response in the same transaction as
+the Action, creation event, and parent version increment. This avoids changing
+the Action's own `updatedAt` just to persist a receipt. Existing Action rows
+are neither modified nor assigned a fabricated historical response. A matching
+retry without a receipt is rejected with `409 IDEMPOTENCY_RECEIPT_UNAVAILABLE`.
+Receipts have no automatic expiry or hard-delete path in this Lab. Backup and
+restore must include the new table alongside Actions and events.
+
+This migration is an unmerged proposal: schema generation/validation and
+TypeScript checks are not evidence of successful deploy, data preservation, or
+recovery. The updated disposable-schema migration tests must run in CI and the
+learner/peer must review the historical-retry policy before merge.
+
+`LAB4_ACTION_FIXTURES` is synthetic and namespace-scoped by each Action's
+`idempotencyKey`. It adds planned, in-progress, completed, and cancelled
+Actions; zero-, one-, and multiple-Action Tickets; a follow-up case; distinct
+assignee and performer examples; and existing active/inactive operational
+personas from Lab 3. Upserts use an empty update so a second seed run neither
+duplicates Actions nor resets credentials, roles, activation, or unrelated
+records.
+
+## Evidence status
+
+The schema and migration/seed/recovery suites passed in PR [#77 CI](https://github.com/Davidice23/toktickit/actions/runs/40923264624) on head `503e3af` using its disposable PostgreSQL service. The PR merged as `be1b800`. These results apply to that exact head; follow-up findings below remain open and must not be described as fixed by the green run.
+
+## Follow-ups recorded from PR #77 review
+
+These items were identified after the #70 implementation. The learner approved
+the policy below for the resolution/history question; its code and assertions
+are implemented in the follow-up branch, but must not be reported as complete
+until the PR-head CI and peer review finish.
+
+**Owner and sequencing:** the follow-up is being prepared on
+`fix/70-data-foundation-followup`, based on the latest `lab4-staging`, for
+Issue #70 and a PR back to `lab4-staging`. Resolve the
+`resolvedAt`/legacy/seed-history decision and its tests before dashboard Issue
+#72; address or explicitly agree the constraints, seed event kind,
+FK/idempotency and migration-helper follow-ups before final hardening #73. The
+learner and reviewer must accept the actual decisions and CI evidence; PR #78
+does not itself claim these items are fixed.
+
+- **Approved policy — no legacy backfill; examples are seed-only.** Migration
+  leaves every pre-existing Lab 1-3 Ticket's `resolvedAt` as `NULL` and creates
+  no fabricated `TicketWorkflowEvent`, even if its current status is
+  `RESOLVED`/`CLOSED` or the Lab 3 requester-confirmation timestamp exists.
+  `updatedAt` and requester confirmation are not substitutes for an audited
+  staff resolution time. Such legacy Tickets remain outside the
+  “recently resolved” metric unless a real post-migration workflow event records
+  a resolution.
+- Deterministic `lab3-demo-*` fixture Tickets may carry synthetic example data:
+  seed supplies one baseline event with `previousStatus = NULL`, the current
+  fixture status, a `synthetic-seed:<key>:baseline` reason, and the seed-run
+  timestamp. For the synthetic `RESOLVED`/`CLOSED` examples only, the same
+  seed-run timestamp may populate a missing `resolvedAt`. Documentation and UI
+  examples must treat that as synthetic sample data, not a real historic
+  transition. Seed must preserve any existing `resolvedAt` or workflow history,
+  and must not reset a fixture whose status has moved away from its declared
+  example state. Ordinary/migrated Tickets are never selected by these stable
+  fixture keys.
+- The migration integration fixture now represents an already-resolved legacy
+  Ticket with the older requester-confirmation timestamp, then asserts that
+  upgrade and recovery preserve that advisory data while leaving
+  `resolvedAt = NULL` and workflow history empty. The seed integration test
+  asserts the synthetic-only baseline and repeat safety. These are tests to be
+  verified on the follow-up PR head, not yet CI evidence.
+- The seeded cancelled Action currently records its lifecycle event as
+  `STATUS_CHANGED`; runtime API writes use `CANCELLED`. Normalize seed events
+  and assert matching event kinds before final evidence. This remains open and
+  is not part of the no-backfill policy change.
+- The migration does not currently have cross-field SQL `CHECK` constraints.
+  Issue #66 enforces lifecycle invariants at the service boundary; direct SQL
+  writers can still bypass them. Before release, either add a reviewed forward
+  migration with compatible constraints and raw-SQL violation tests, or obtain
+  an explicit, documented decision to rely solely on the service boundary.
+- The migration integration helper currently splits SQL on semicolons. Keep
+  migrations free of dollar-quoted blocks until the helper is replaced with a
+  robust execution approach. Direct FK `RESTRICT` and scoped idempotency
+  uniqueness assertions are still needed in the migration test suite.
+
+The approved no-backfill policy clears the resolution/history decision needed
+before dashboard Issue #72. It does not close the other hardening follow-ups;
+those must be resolved or explicitly accepted before final hardening #73.

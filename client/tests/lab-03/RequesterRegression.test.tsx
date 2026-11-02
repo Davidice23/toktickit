@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import App from "../../src/App.js";
 import * as api from "../../src/api.js";
 
@@ -11,9 +12,17 @@ afterEach(() => vi.restoreAllMocks());
 describe("Lab 3 authenticated Requester regression UI", () => {
   it("loads only the signed-in user's ticket workspace", async () => {
     vi.spyOn(api, "fetchCurrentUser").mockResolvedValue(session);
+    vi.spyOn(api, "fetchRequesterDashboard").mockResolvedValue({
+      asOf: "2026-11-01T05:00:00.000Z", metrics: { openTickets: 0, waitingForRequester: 0, recentlyUpdated: 0, recentlyResolved: 0 },
+      attentionTickets: [], recentlyUpdatedTickets: [], recentlyResolvedTickets: [],
+      drillDown: { openTickets: "", waitingForRequester: "", recentlyUpdated: "", recentlyResolved: "" },
+    });
     vi.spyOn(api, "fetchTickets").mockResolvedValue(list);
+    const user = userEvent.setup();
     render(<App />);
 
+    expect(await screen.findByText("No Tickets are waiting for your response.")).toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: "My Tickets" }));
     expect(await screen.findByRole("heading", { name: "My Tickets" })).toBeInTheDocument();
     expect(await screen.findByText("You have not created any tickets yet.")).toBeInTheDocument();
     expect(screen.queryByText(/Development Requester/i)).not.toBeInTheDocument();

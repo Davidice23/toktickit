@@ -2,7 +2,8 @@ import { expect, test } from "@playwright/test";
 import { signIn } from "./helpers";
 
 test("Administrator can search users and create one without password disclosure", async ({ page }) => {
-  await signIn(page, "admin@example.test", /Administrator workspace/);
+  await signIn(page, "admin@example.test", /Staff operations workspace/);
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "User Management" }).click();
   await expect(page.getByRole("heading", { name: "User Management" })).toBeVisible();
   await expect(page.getByText("Loading Users...")).toBeHidden();
 

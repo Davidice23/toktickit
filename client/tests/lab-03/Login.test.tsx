@@ -12,6 +12,11 @@ describe("Lab 3 login and safe authentication states", () => {
   it("signs in and opens the session-owned workspace", async () => {
     vi.spyOn(api, "fetchCurrentUser").mockRejectedValue(new Error("Unauthenticated"));
     vi.spyOn(api, "login").mockResolvedValue(session);
+    vi.spyOn(api, "fetchRequesterDashboard").mockResolvedValue({
+      asOf: "2026-11-01T05:00:00.000Z", metrics: { openTickets: 0, waitingForRequester: 0, recentlyUpdated: 0, recentlyResolved: 0 },
+      attentionTickets: [], recentlyUpdatedTickets: [], recentlyResolvedTickets: [],
+      drillDown: { openTickets: "", waitingForRequester: "", recentlyUpdated: "", recentlyResolved: "" },
+    });
     const user = userEvent.setup();
     render(<App />);
 
@@ -19,7 +24,8 @@ describe("Lab 3 login and safe authentication states", () => {
     await user.type(screen.getByLabelText("Password"), "temporary-password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByRole("heading", { name: "My Tickets" })).toBeInTheDocument();
+    expect(await screen.findByText("No Tickets are waiting for your response.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Requester Dashboard" })).toBeInTheDocument();
     expect(screen.getByLabelText("Current User")).toHaveTextContent("Anan Chaiya");
     expect(api.login).toHaveBeenCalledWith("anan@example.com", "temporary-password");
   });

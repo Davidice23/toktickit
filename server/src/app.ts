@@ -1,8 +1,11 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
 import { createHash, randomUUID } from "node:crypto";
-import { ITPriority, RequestedPriority, TicketStatus } from "@prisma/client";
+import { ITPriority, Prisma, RequestedPriority, TicketStatus } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
+import { lab4ActionsRouter } from "./lab4-actions.js";
+import { dashboardOpenStatuses, dashboardWindowStart, lab4DashboardRouter, parseDashboardAsOf } from "./lab4-dashboard.js";
+import { lab4TicketWorkflowRouter } from "./lab4-ticket-workflow.js";
 import multer from "multer";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -342,10 +345,15 @@ app.get("/api/tickets", requireSession, requireNormalSession, requireRoles("REQU
   const priority = req.query.requestedPriority;
   if (priority !== undefined && !Object.values(RequestedPriority).includes(priority as RequestedPriority)) fields.requestedPriority = "Unsupported priority";
   if (req.query.status !== undefined && (typeof req.query.status !== "string" || !Object.values(TicketStatus).includes(req.query.status as TicketStatus))) fields.status = "Unsupported status";
+  const scope = req.query.scope;
+  if (scope !== undefined && (typeof scope !== "string" || !["open", "recently-updated", "recently-resolved"].includes(scope))) fields.scope = "Unsupported Ticket scope";
+  const requestedAsOf = parseDashboardAsOf(req.query.asOf);
+  if (req.query.asOf !== undefined && !requestedAsOf) fields.asOf = "asOf must be a canonical ISO-8601 UTC timestamp";
   if (Object.keys(fields).length) return validationError(res, fields);
 
   try {
-    const where: any = { requesterId: requesterId as number };
+    const where: Prisma.TicketWhereInput = { requesterId: requesterId as number };
+    const predicates: Prisma.TicketWhereInput[] = [];
     if (search) where.OR = [
       { ticketNumber: { contains: search, mode: "insensitive" } },
       { summary: { contains: search, mode: "insensitive" } },
@@ -353,8 +361,17 @@ app.get("/api/tickets", requireSession, requireNormalSession, requireRoles("REQU
     ];
     if (categoryId) where.categoryId = categoryId;
     if (relatedSystemId) where.relatedSystemId = relatedSystemId;
-    if (priority) where.requestedPriority = priority;
-    if (req.query.status) where.currentStatus = req.query.status;
+    if (priority) where.requestedPriority = priority as RequestedPriority;
+    if (typeof req.query.status === "string") predicates.push({ currentStatus: req.query.status as TicketStatus });
+    const asOf = requestedAsOf ?? new Date();
+    const start = dashboardWindowStart(asOf);
+    if (scope === "open") predicates.push({ currentStatus: { in: [...dashboardOpenStatuses] } });
+    if (scope === "recently-updated") predicates.push({ updatedAt: { gte: start, lt: asOf } });
+    if (scope === "recently-resolved") predicates.push({
+      currentStatus: { in: [TicketStatus.RESOLVED, TicketStatus.CLOSED] },
+      resolvedAt: { gte: start, lt: asOf },
+    });
+    if (predicates.length) where.AND = predicates;
     const orderField = sortBy === "ticketDate" ? "createdAt" : sortBy;
     const orderBy: any[] = [{ [orderField]: sortDirection }, { id: "desc" }];
     const prisma = getPrisma();
@@ -380,6 +397,8 @@ app.get("/api/tickets/:ticketId", requireSession, requireNormalSession, requireR
       where: { id: ticketId, requesterId },
       select: {
         ...ticketDetailSelect,
+        requesterConfirmedResolved: true,
+        requesterConfirmedResolvedAt: true,
         attachments: {
           select: { id: true, ticketId: true, originalName: true, mimeType: true, sizeBytes: true, uploadedAt: true, removedAt: true, removedReason: true },
           orderBy: [{ uploadedAt: "asc" }, { id: "asc" }],
@@ -500,7 +519,7 @@ const staffQueueSortFields: Record<string, string> = {
   itPriority: "itPriority",
   owner: "ownerId",
 };
-const staffQueueParams = new Set(["search", "status", "requestedPriority", "itPriority", "owner", "sortBy", "sortDirection", "page", "pageSize"]);
+const staffQueueParams = new Set(["search", "status", "requestedPriority", "itPriority", "owner", "scope", "asOf", "sortBy", "sortDirection", "page", "pageSize"]);
 const staffTicketSelect = {
   id: true,
   ticketNumber: true,
@@ -515,6 +534,8 @@ const staffTicketSelect = {
   ownerId: true,
   requesterConfirmedResolved: true,
   requesterConfirmedResolvedAt: true,
+  workflowVersion: true,
+  resolvedAt: true,
   createdAt: true,
   updatedAt: true,
   requester: { select: { id: true, name: true, email: true } },
@@ -560,6 +581,11 @@ app.get("/api/staff/tickets", requireSession, requireNormalSession, requireRoles
   const owner = req.query.owner;
   if (owner !== undefined && typeof owner === "string" && !["unassigned", "me"].includes(owner) && !positiveInteger(owner)) fields.owner = "Owner must be unassigned, me, or a positive User ID";
   if (owner !== undefined && typeof owner !== "string") fields.owner = "Owner must be unassigned, me, or a positive User ID";
+  const scope = req.query.scope;
+  const staffScopes = ["unassigned-open", "my-owned-open", "my-active-actions", "my-recently-completed-actions", "urgent-open"];
+  if (scope !== undefined && (typeof scope !== "string" || !staffScopes.includes(scope))) fields.scope = "Unsupported Staff Ticket scope";
+  const requestedAsOf = parseDashboardAsOf(req.query.asOf);
+  if (req.query.asOf !== undefined && !requestedAsOf) fields.asOf = "asOf must be a canonical ISO-8601 UTC timestamp";
   const sortBy = req.query.sortBy === undefined ? "updatedAt" : req.query.sortBy;
   if (typeof sortBy !== "string" || !staffQueueSortFields[sortBy]) fields.sortBy = "Unsupported sort field";
   const sortDirection = req.query.sortDirection === undefined ? "desc" : req.query.sortDirection;
@@ -574,7 +600,7 @@ app.get("/api/staff/tickets", requireSession, requireNormalSession, requireRoles
   if (!auth) return;
   const validPage = page as number;
   const validPageSize = pageSize as number;
-  const where: any = {};
+  const where: Prisma.TicketWhereInput = {};
   if (search) {
     where.OR = [
       { ticketNumber: { contains: search, mode: "insensitive" } },
@@ -584,12 +610,27 @@ app.get("/api/staff/tickets", requireSession, requireNormalSession, requireRoles
       { requester: { email: { contains: search, mode: "insensitive" } } },
     ];
   }
-  if (typeof status === "string") where.currentStatus = status;
-  if (typeof requestedPriority === "string") where.requestedPriority = requestedPriority;
-  if (typeof itPriority === "string") where.itPriority = itPriority === "UNASSIGNED" ? null : itPriority;
+  if (typeof status === "string") where.currentStatus = status as TicketStatus;
+  if (typeof requestedPriority === "string") where.requestedPriority = requestedPriority as RequestedPriority;
+  if (typeof itPriority === "string") where.itPriority = itPriority === "UNASSIGNED" ? null : itPriority as ITPriority;
   if (owner === "unassigned") where.ownerId = null;
   if (owner === "me") where.ownerId = auth.user.id;
   if (typeof owner === "string" && positiveInteger(owner)) where.ownerId = positiveInteger(owner);
+  if (typeof scope === "string") {
+    const asOf = requestedAsOf ?? new Date();
+    const start = dashboardWindowStart(asOf);
+    const openScope = { currentStatus: { in: [...dashboardOpenStatuses] } } satisfies Prisma.TicketWhereInput;
+    const scopePredicate: Prisma.TicketWhereInput = scope === "unassigned-open"
+      ? { ...openScope, ownerId: null }
+      : scope === "my-owned-open"
+        ? { ...openScope, ownerId: auth.user.id }
+        : scope === "my-active-actions"
+          ? { actions: { some: { assigneeId: auth.user.id, status: { in: ["PLANNED", "IN_PROGRESS"] } } } }
+          : scope === "my-recently-completed-actions"
+            ? { actions: { some: { performedById: auth.user.id, status: "COMPLETED", actionAt: { gte: start, lt: asOf } } } }
+            : { ...openScope, OR: [{ itPriority: "URGENT" }, { itPriority: null, requestedPriority: "URGENT" }] };
+    where.AND = [...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []), scopePredicate];
+  }
   try {
     const prisma = getPrisma();
     const orderField = staffQueueSortFields[sortBy as string];
@@ -609,6 +650,7 @@ app.get("/api/staff/tickets", requireSession, requireNormalSession, requireRoles
           itPriority: true,
           currentStatus: true,
           ownerId: true,
+          workflowVersion: true,
           createdAt: true,
           updatedAt: true,
           requester: { select: { id: true, name: true, email: true } },
@@ -652,87 +694,8 @@ app.get("/api/staff/tickets/:ticketId/attachments/:attachmentId/download", requi
   });
 });
 
-app.post("/api/staff/tickets/:ticketId/claim", requireSession, requireNormalSession, requireRoles(...staffRoles), requireCsrf, async (req: Request, res: Response) => {
-  const ticketId = positiveInteger(req.params.ticketId);
-  const auth = (req as AuthenticatedRequest).auth;
-  if (!ticketId || !auth) return staffNotFound(res);
-  const updated = await getPrisma().ticket.updateMany({ where: { id: ticketId, ownerId: null }, data: { ownerId: auth.user.id } });
-  if (!updated.count) return res.status(409).json(errorBody("CLAIM_CONFLICT", "Ticket is already owned"));
-  return res.status(200).json({ data: { owner: safeUser(auth.user) } });
-});
-
-app.patch("/api/staff/tickets/:ticketId/assignment", requireSession, requireNormalSession, requireRoles(...staffRoles), requireCsrf, async (req: Request, res: Response) => {
-  const ticketId = positiveInteger(req.params.ticketId);
-  if (!ticketId) return staffNotFound(res);
-  if (!Object.prototype.hasOwnProperty.call(req.body ?? {}, "ownerId")) return validationError(res, { ownerId: "ownerId is required" });
-  const rawOwnerId = req.body.ownerId;
-  const ownerId = rawOwnerId === null ? null : positiveInteger(rawOwnerId);
-  if (rawOwnerId !== null && !ownerId) return validationError(res, { ownerId: "ownerId must be null or a positive User ID" });
-  const prisma = getPrisma();
-  const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true, ownerId: true, currentStatus: true } });
-  if (!ticket) return staffNotFound(res);
-  if (ticket.ownerId === null && ownerId !== null) return res.status(409).json(errorBody("CLAIM_REQUIRED", "Use the claim endpoint for an unassigned Ticket"));
-  if (ownerId === null && !["NEW", "OPEN"].includes(ticket.currentStatus)) return res.status(409).json(errorBody("OWNER_REQUIRED", "Tickets may only be unassigned while New or Open"));
-  if (ownerId !== null) {
-    const target = await prisma.requesterUser.findFirst({ where: { id: ownerId, isActive: true, role: { in: [...staffRoles] } }, select: { id: true, name: true, email: true, role: true, isActive: true, mustChangePassword: true } });
-    if (!target) return res.status(400).json(errorBody("INVALID_OWNER", "Owner must be an active IT Staff or Administrator"));
-    const changed = await prisma.ticket.updateMany({ where: { id: ticketId, ownerId: ticket.ownerId, currentStatus: ticket.currentStatus }, data: { ownerId } });
-    if (!changed.count) return res.status(409).json(errorBody("ASSIGNMENT_CONFLICT", "Ticket ownership or status changed; reload before assigning"));
-    const updated = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, select: { owner: { select: { id: true, name: true, email: true, role: true, isActive: true } } } });
-    return res.status(200).json({ data: updated });
-  }
-  const changed = await prisma.ticket.updateMany({ where: { id: ticketId, ownerId: ticket.ownerId, currentStatus: ticket.currentStatus }, data: { ownerId: null } });
-  if (!changed.count) return res.status(409).json(errorBody("ASSIGNMENT_CONFLICT", "Ticket ownership or status changed; reload before unassigning"));
-  const updated = await prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, select: { owner: true } });
-  return res.status(200).json({ data: updated });
-});
-
-app.patch("/api/staff/tickets/:ticketId/priority", requireSession, requireNormalSession, requireRoles(...staffRoles), requireCsrf, async (req: Request, res: Response) => {
-  const ticketId = positiveInteger(req.params.ticketId);
-  const itPriority = req.body?.itPriority;
-  if (!ticketId) return staffNotFound(res);
-  if (typeof itPriority !== "string" || !Object.values(ITPriority).includes(itPriority as ITPriority)) return validationError(res, { itPriority: "IT Priority must be LOW, MEDIUM, HIGH, or URGENT" });
-  const updated = await getPrisma().ticket.updateMany({ where: { id: ticketId }, data: { itPriority: itPriority as ITPriority } });
-  if (!updated.count) return staffNotFound(res);
-  return res.status(200).json({ data: { id: ticketId, itPriority } });
-});
-
-const allowedStaffTransitions: Record<TicketStatus, TicketStatus[]> = {
-  NEW: [TicketStatus.OPEN, TicketStatus.CANCELLED],
-  OPEN: [TicketStatus.IN_PROGRESS, TicketStatus.WAITING_FOR_REQUESTER, TicketStatus.CANCELLED],
-  IN_PROGRESS: [TicketStatus.WAITING_FOR_REQUESTER, TicketStatus.RESOLVED, TicketStatus.CANCELLED],
-  WAITING_FOR_REQUESTER: [TicketStatus.IN_PROGRESS, TicketStatus.RESOLVED, TicketStatus.CANCELLED],
-  RESOLVED: [TicketStatus.CLOSED, TicketStatus.REOPENED],
-  CLOSED: [TicketStatus.REOPENED],
-  REOPENED: [TicketStatus.IN_PROGRESS, TicketStatus.CANCELLED],
-  CANCELLED: [TicketStatus.REOPENED],
-};
-
-app.patch("/api/staff/tickets/:ticketId/status", requireSession, requireNormalSession, requireRoles(...staffRoles), requireCsrf, async (req: Request, res: Response) => {
-  const ticketId = positiveInteger(req.params.ticketId);
-  const status = req.body?.status;
-  if (!ticketId) return staffNotFound(res);
-  if (typeof status !== "string" || !Object.values(TicketStatus).includes(status as TicketStatus)) return validationError(res, { status: "Unsupported status" });
-  const nextStatus = status as TicketStatus;
-  const ticket = await getPrisma().ticket.findUnique({ where: { id: ticketId }, select: { id: true, currentStatus: true, ownerId: true } });
-  if (!ticket) return staffNotFound(res);
-  if (!allowedStaffTransitions[ticket.currentStatus].includes(nextStatus)) return res.status(409).json(errorBody("INVALID_TRANSITION", "Status transition is not allowed"));
-  if (nextStatus === TicketStatus.CANCELLED && (req.body.confirmation !== true || !normalizeText(req.body.reason))) return validationError(res, { confirmation: "Cancellation confirmation and reason are required" });
-  if ((nextStatus === TicketStatus.RESOLVED || nextStatus === TicketStatus.CLOSED) && req.body.confirmation !== true) return validationError(res, { confirmation: "Confirmation is required for this status" });
-  if (nextStatus === TicketStatus.REOPENED && !normalizeText(req.body.reason)) return validationError(res, { reason: "A reason is required when reopening" });
-  if ((nextStatus === TicketStatus.IN_PROGRESS || nextStatus === TicketStatus.RESOLVED) && !ticket.ownerId) return validationError(res, { ownerId: "An active operational owner is required" });
-  const changed = await getPrisma().ticket.updateMany({
-    where: {
-      id: ticketId,
-      currentStatus: ticket.currentStatus,
-      ...(nextStatus === TicketStatus.IN_PROGRESS || nextStatus === TicketStatus.RESOLVED ? { ownerId: { not: null } } : {}),
-    },
-    data: { currentStatus: nextStatus },
-  });
-  if (!changed.count) return res.status(409).json(errorBody("STATUS_CONFLICT", "Ticket status or owner changed; reload before updating"));
-  const updated = await getPrisma().ticket.findUniqueOrThrow({ where: { id: ticketId }, select: { id: true, currentStatus: true } });
-  return res.status(200).json({ data: updated });
-});
+// The Lab 4 router replaces these four write paths; no legacy bypass remains.
+app.use(lab4TicketWorkflowRouter);
 
 app.get("/api/staff/tickets/:ticketId/comments", requireSession, requireNormalSession, requireRoles(...staffRoles), async (req: Request, res: Response) => {
   const ticketId = positiveInteger(req.params.ticketId);
@@ -885,6 +848,9 @@ app.patch("/api/admin/users/:userId", requireSession, requireNormalSession, requ
     // transaction allows two concurrent demotions to remove the final Admin.
     const outcome = await prisma.$transaction(async (tx) => {
       await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(334, 3)::text AS lock');
+      // Serialize role/deactivation against workflow's FOR SHARE owner check.
+      // The admin path never locks a Ticket while holding this User lock.
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR UPDATE`);
       const target = await tx.requesterUser.findUnique({ where: { id: userId }, select: { id: true, role: true, isActive: true } });
       if (!target) return { kind: "missing" as const };
       const nextRole = (role ?? target.role) as AdminUserRole;
@@ -898,6 +864,13 @@ app.patch("/api/admin/users/:userId", requireSession, requireNormalSession, requ
         const activeAdmins = await tx.requesterUser.count({ where: { role: "ADMINISTRATOR", isActive: true } });
         if (activeAdmins <= 1) return { kind: "last" as const };
       }
+      if (target.isActive && (target.role === "IT_STAFF" || target.role === "ADMINISTRATOR") && (!nextActive || nextRole === "REQUESTER")) {
+        // Only work actively being performed blocks account deactivation/demotion.
+        // RESOLVED/CLOSED Tickets keep their historical owner reference; a later
+        // transition that requires an active owner will require reassignment.
+        const owned = await tx.ticket.findFirst({ where: { ownerId: userId, currentStatus: TicketStatus.IN_PROGRESS }, select: { id: true } });
+        if (owned) return { kind: "owns_required_tickets" as const };
+      }
       const user = await tx.requesterUser.update({ where: { id: userId }, data, select: adminUserFields });
       if (!nextActive) await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
       return { kind: "updated" as const, user };
@@ -906,6 +879,7 @@ app.patch("/api/admin/users/:userId", requireSession, requireNormalSession, requ
     if (outcome.kind === "self") return res.status(409).json(errorBody("SELF_DEACTIVATION", "You cannot deactivate your own Administrator account"));
     if (outcome.kind === "duplicate") return res.status(409).json(errorBody("DUPLICATE_EMAIL", "A user with this email already exists", { email: "Email is already in use" }));
     if (outcome.kind === "last") return res.status(409).json(errorBody("LAST_ADMIN", "At least one active Administrator must remain"));
+    if (outcome.kind === "owns_required_tickets") return res.status(409).json(errorBody("ACTIVE_TICKET_OWNERSHIP", "Reassign Tickets currently in progress before deactivating or changing this user's operational role"));
     return res.status(200).json({ data: adminSafeUser(outcome.user) });
   } catch (error) {
     if (typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002") return res.status(409).json(errorBody("DUPLICATE_EMAIL", "A user with this email already exists", { email: "Email is already in use" }));
@@ -936,4 +910,7 @@ app.post("/api/admin/users/:userId/initial-password", requireSession, requireNor
     return res.status(500).json(errorBody("INTERNAL_ERROR", "Unable to reset initial password", undefined, correlationId));
   }
 });
+
+app.use(lab4ActionsRouter);
+app.use(lab4DashboardRouter);
 export default app;

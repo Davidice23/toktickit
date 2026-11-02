@@ -18,7 +18,7 @@ describe("Lab 3 session-owned Create Ticket", () => {
     vi.spyOn(api, "createTicket").mockResolvedValue({ id: 1, ticketNumber: "TKT-000001", requesterId: 1, summary: "Printer issue", currentStatus: "NEW", createdAt: "2026-09-05T00:00:00Z" });
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByRole("heading", { name: "My Tickets" });
+    await screen.findByRole("link", { name: "Create Ticket" });
     await user.click(within(screen.getByRole("navigation", { name: /primary navigation/i })).getByRole("link", { name: "Create Ticket" }));
     await screen.findByRole("heading", { name: "Create Ticket" });
 

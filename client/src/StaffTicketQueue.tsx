@@ -15,9 +15,17 @@ type QueueFilters = {
   pageSize: string;
 };
 
+const scopeLabels: Record<string, string> = {
+  "unassigned-open": "Unassigned Open",
+  "my-owned-open": "My Owned Open",
+  "my-active-actions": "My Active Actions",
+  "my-recently-completed-actions": "My Recently Completed Actions",
+  "urgent-open": "Urgent Open",
+};
+
 const initialFilters: QueueFilters = { search: "", status: "", requestedPriority: "", itPriority: "", owner: "", sortBy: "updatedAt", sortDirection: "desc", pageSize: "20" };
 
-export default function StaffTicketQueue({ onOpen }: { onOpen: (ticketId: number) => void }) {
+export default function StaffTicketQueue({ onOpen, scope, asOf }: { onOpen: (ticketId: number) => void; scope?: string; asOf?: string }) {
   const [filters, setFilters] = useState<QueueFilters>(initialFilters);
   const [draft, setDraft] = useState<QueueFilters>(initialFilters);
   const [page, setPage] = useState(1);
@@ -28,18 +36,22 @@ export default function StaffTicketQueue({ onOpen }: { onOpen: (ticketId: number
   async function load(nextPage = page, nextFilters = filters) {
     setState("loading"); setError("");
     const params = new URLSearchParams({ page: String(nextPage), pageSize: nextFilters.pageSize, sortBy: nextFilters.sortBy, sortDirection: nextFilters.sortDirection });
+    if (scope) params.set("scope", scope);
+    if (asOf) params.set("asOf", asOf);
     (Object.keys(nextFilters) as Array<keyof QueueFilters>).forEach((key) => { if (["search", "status", "requestedPriority", "itPriority", "owner"].includes(key) && nextFilters[key]) params.set(key, nextFilters[key]); });
     try { setList(await fetchStaffTickets(params)); setState("ready"); } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to load Staff Queue"); setState("error"); }
   }
 
-  useEffect(() => { void load(1, initialFilters); }, []);
+  useEffect(() => { setFilters(initialFilters); setDraft(initialFilters); setPage(1); void load(1, initialFilters); }, [scope, asOf]);
 
   function submit(event: React.FormEvent) { event.preventDefault(); const next = { ...draft, search: draft.search.trim() }; setFilters(next); setPage(1); void load(1, next); }
   function clearFilters() { setDraft(initialFilters); setFilters(initialFilters); setPage(1); void load(1, initialFilters); }
   function changePage(nextPage: number) { setPage(nextPage); void load(nextPage); }
 
+  const dashboardFilter = scope ? scopeLabels[scope] : "";
   return <section className="staff-queue" aria-labelledby="staff-queue-heading">
     <div className="list-header"><div><p className="eyebrow">Authenticated operational workspace</p><h2 id="staff-queue-heading">Staff Ticket Queue</h2><p className="helper-text">Search and manage Tickets assigned to the IT operations team.</p></div></div>
+    {dashboardFilter && <div className="dashboard-filter" role="status">Dashboard filter: <strong>{dashboardFilter}</strong> <a href="#staff-tickets">Clear filter</a></div>}
     <form className="queue-filters" onSubmit={submit} aria-label="Staff Ticket Queue filters">
       <div className="queue-filter-wide"><label htmlFor="staff-search">Search</label><input id="staff-search" value={draft.search} onChange={(event) => setDraft({ ...draft, search: event.target.value })} placeholder="Ticket, summary, description, requester" /></div>
       <div><label htmlFor="staff-status">Status</label><select id="staff-status" value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}><option value="">All statuses</option>{statuses.map((status) => <option key={status} value={status}>{status}</option>)}</select></div>

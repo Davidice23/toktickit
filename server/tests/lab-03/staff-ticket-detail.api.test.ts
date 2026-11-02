@@ -33,6 +33,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.ticketWorkflowEvent.deleteMany({ where: { ticketId } });
+  await prisma.actionTakenEvent.deleteMany({ where: { action: { ticketId } } });
+  await prisma.actionCreateReceipt.deleteMany({ where: { action: { ticketId } } });
+  await prisma.actionTaken.deleteMany({ where: { ticketId } });
+  await prisma.publicComment.deleteMany({ where: { ticketId } });
+  await prisma.internalNote.deleteMany({ where: { ticketId } });
   await prisma.ticket.delete({ where: { id: ticketId } }).catch(() => undefined);
   await prisma.$disconnect();
 });
@@ -50,22 +56,25 @@ describe.sequential("Lab 3 Staff Ticket Detail API", () => {
   });
 
   it("updates priority and enforces the approved status transition conditions", async () => {
-    const priority = await staffFixture.agent.patch("/api/staff/tickets/" + ticketId + "/priority").set("X-CSRF-Token", staffFixture.csrfToken).send({ itPriority: "URGENT" });
+    const priority = await staffFixture.agent.patch("/api/staff/tickets/" + ticketId + "/priority").set("X-CSRF-Token", staffFixture.csrfToken).send({ itPriority: "URGENT", expectedTicketVersion: 1 });
     expect(priority.status).toBe(200);
     expect(priority.body.data.itPriority).toBe("URGENT");
-    const missingConfirmation = await staffFixture.agent.patch("/api/staff/tickets/" + ticketId + "/status").set("X-CSRF-Token", staffFixture.csrfToken).send({ status: "CANCELLED" });
+    const missingConfirmation = await staffFixture.agent.patch("/api/staff/tickets/" + ticketId + "/status").set("X-CSRF-Token", staffFixture.csrfToken).send({ status: "CANCELLED", expectedTicketVersion: 2 });
     expect(missingConfirmation.status).toBe(400);
     expect(missingConfirmation.body.error.code).toBe("VALIDATION_ERROR");
-    const invalid = await staffFixture.agent.patch("/api/staff/tickets/" + ticketId + "/status").set("X-CSRF-Token", staffFixture.csrfToken).send({ status: "CLOSED", confirmation: true });
+    const invalid = await staffFixture.agent.patch("/api/staff/tickets/" + ticketId + "/status").set("X-CSRF-Token", staffFixture.csrfToken).send({ status: "CLOSED", confirmation: true, expectedTicketVersion: 2 });
     expect(invalid.status).toBe(409);
     expect(invalid.body.error.code).toBe("INVALID_TRANSITION");
-    const claim = await staffFixture.agent.post("/api/staff/tickets/" + ticketId + "/claim").set("X-CSRF-Token", staffFixture.csrfToken).send({});
+    const claim = await staffFixture.agent.post("/api/staff/tickets/" + ticketId + "/claim").set("X-CSRF-Token", staffFixture.csrfToken).send({ expectedTicketVersion: 2 });
     expect(claim.status).toBe(200);
-    const open = await staffFixture.agent.patch("/api/staff/tickets/" + ticketId + "/status").set("X-CSRF-Token", staffFixture.csrfToken).send({ status: "OPEN" });
+    const open = await staffFixture.agent.patch("/api/staff/tickets/" + ticketId + "/status").set("X-CSRF-Token", staffFixture.csrfToken).send({ status: "OPEN", expectedTicketVersion: 3 });
     expect(open.status).toBe(200);
-    const inProgress = await staffFixture.agent.patch("/api/staff/tickets/" + ticketId + "/status").set("X-CSRF-Token", staffFixture.csrfToken).send({ status: "IN_PROGRESS" });
+    const inProgress = await staffFixture.agent.patch("/api/staff/tickets/" + ticketId + "/status").set("X-CSRF-Token", staffFixture.csrfToken).send({ status: "IN_PROGRESS", expectedTicketVersion: 4 });
     expect(inProgress.status).toBe(200);
-    const resolved = await staffFixture.agent.patch("/api/staff/tickets/" + ticketId + "/status").set("X-CSRF-Token", staffFixture.csrfToken).send({ status: "RESOLVED", confirmation: true });
+    const blocked = await staffFixture.agent.patch("/api/staff/tickets/" + ticketId + "/status").set("X-CSRF-Token", staffFixture.csrfToken).send({ status: "RESOLVED", expectedTicketVersion: 5 });
+    expect(blocked.status).toBe(422);
+    await prisma.actionTaken.create({ data: { ticketId, assigneeId: staffFixture.userId, createdById: staffFixture.userId, performedById: staffFixture.userId, status: "COMPLETED", description: "Regression fixture", result: "Verified", actionAt: new Date(), idempotencyKey: randomUUID(), requestFingerprint: randomUUID() } });
+    const resolved = await staffFixture.agent.patch("/api/staff/tickets/" + ticketId + "/status").set("X-CSRF-Token", staffFixture.csrfToken).send({ status: "RESOLVED", expectedTicketVersion: 5 });
     expect(resolved.status).toBe(200);
   });
 

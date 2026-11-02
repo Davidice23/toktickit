@@ -1,10 +1,10 @@
-import request, { type SuperAgentTest } from "supertest";
+import request from "supertest";
 import { app } from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
 
 const password = process.env.LAB3_SEED_INITIAL_PASSWORD ?? "local-only-password";
 
-export async function loginAsUser(role: "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR", userId?: number): Promise<{ agent: SuperAgentTest; userId: number; csrfToken: string }> {
+export async function loginAsUser(role: "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR", userId?: number) {
   const prisma = getPrisma();
   const user = await prisma.requesterUser.findFirstOrThrow({
     where: { isActive: true, role, ...(userId ? { id: userId } : {}) },

@@ -8,7 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:lab3": "vitest run tests/lab-03"
+    "test:lab3": "vitest run tests/lab-03",
+    "test:lab4": "vitest run tests/lab-04"
   },
   "dependencies": {
     "bootstrap": "^5.3.3",

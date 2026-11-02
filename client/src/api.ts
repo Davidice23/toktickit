@@ -37,7 +37,14 @@ function errorMessage(payload: unknown, fallback: string): string {
 
 async function jsonResponse<T>(response: Response, fallback: string): Promise<T> {
   const payload = await response.json().catch(() => ({})) as unknown;
-  if (!response.ok) throw Object.assign(new Error(errorMessage(payload, fallback)), { fields: typeof (payload as { error?: { fields?: unknown } })?.error === "object" ? (payload as { error: { fields?: Record<string, string> } }).error.fields : undefined });
+  if (!response.ok) {
+    const error = typeof payload === "object" && payload !== null ? (payload as { error?: { code?: unknown; fields?: unknown } }).error : undefined;
+    throw Object.assign(new Error(errorMessage(payload, fallback)), {
+      code: typeof error?.code === "string" ? error.code : undefined,
+      status: response.status,
+      fields: typeof error?.fields === "object" && error.fields !== null ? error.fields as Record<string, string> : undefined,
+    });
+  }
   return payload as T;
 }
 
@@ -84,6 +91,20 @@ export async function fetchTickets(paramsOrRequester: URLSearchParams | number, 
   const payload = await jsonResponse<TicketList>(response, "Unable to load Tickets");
   if (!payload.meta || !Array.isArray(payload.data)) throw new Error("Unexpected Ticket response");
   return payload;
+}
+
+export async function fetchRequesterDashboard(): Promise<RequesterDashboard> {
+  const response = await fetch(`${API_URL}/api/dashboard/requester`, { credentials: "include" });
+  const payload = await jsonResponse<{ data: RequesterDashboard }>(response, "Unable to load Requester dashboard");
+  if (!payload.data || !payload.data.metrics || !Array.isArray(payload.data.attentionTickets)) throw new Error("Unexpected Requester dashboard response");
+  return payload.data;
+}
+
+export async function fetchStaffDashboard(): Promise<StaffDashboard> {
+  const response = await fetch(`${API_URL}/api/dashboard/staff`, { credentials: "include" });
+  const payload = await jsonResponse<{ data: StaffDashboard }>(response, "Unable to load Staff dashboard");
+  if (!payload.data || !payload.data.metrics || !Array.isArray(payload.data.myActiveActions) || !Array.isArray(payload.data.recentOrUrgentTickets)) throw new Error("Unexpected Staff dashboard response");
+  return payload.data;
 }
 
 export async function fetchTicketDetail(requesterOrTicketId: number, legacyTicketId?: number): Promise<TicketDetail> {
@@ -179,13 +200,151 @@ export interface StaffTicketRow extends TicketSummary {
   itPriority: TicketPriority | null;
 }
 export interface StaffTicketList { data: StaffTicketRow[]; meta: TicketList["meta"] }
+export interface DashboardRequesterTicket {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  currentStatus: TicketStatus;
+  requestedPriority: TicketPriority;
+  itPriority: TicketPriority | null;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+}
+export interface RequesterDashboard {
+  asOf: string;
+  metrics: { openTickets: number; waitingForRequester: number; recentlyUpdated: number; recentlyResolved: number };
+  attentionTickets: DashboardRequesterTicket[];
+  recentlyUpdatedTickets: DashboardRequesterTicket[];
+  recentlyResolvedTickets: DashboardRequesterTicket[];
+  drillDown: Record<"openTickets" | "waitingForRequester" | "recentlyUpdated" | "recentlyResolved", string>;
+}
+export interface DashboardStaffTicket {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  currentStatus: TicketStatus;
+  requestedPriority: TicketPriority;
+  itPriority: TicketPriority | null;
+  ownerId: number | null;
+  createdAt: string;
+  updatedAt: string;
+  requester: { id: number; name: string };
+  owner: { id: number; name: string } | null;
+}
+export interface DashboardAction {
+  id: number;
+  ticketId: number;
+  status: ActionStatus;
+  description: string;
+  actionAt: string | null;
+  updatedAt: string;
+  ticket: { id: number; ticketNumber: string; summary: string };
+}
+export interface StaffDashboard {
+  asOf: string;
+  metrics: { unassignedOpenTickets: number; myOwnedOpenTickets: number; myActiveActions: number; myRecentlyCompletedActions: number; urgentOpenTickets: number };
+  myActiveActions: DashboardAction[];
+  myRecentlyCompletedActions: DashboardAction[];
+  recentOrUrgentTickets: DashboardStaffTicket[];
+  drillDown: Record<"unassignedOpenTickets" | "myOwnedOpenTickets" | "myActiveActions" | "myRecentlyCompletedActions" | "urgentOpenTickets", string>;
+  adminAccountSummary: Array<{ role: User["role"]; activeUsers: number }> | null;
+}
 export interface InternalNote { id: number; ticketId: number; body: string; createdAt: string; author: { id: number; name: string; role: User["role"] } }
 export interface StaffTicketDetail extends Omit<TicketDetail, "itPriority" | "publicComments"> {
+  workflowVersion: number;
   itPriority: TicketPriority | null;
   ownerId: number | null;
   owner: StaffOwner | null;
   publicComments: PublicComment[];
   internalNotes: InternalNote[];
+}
+
+export type ActionStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+export interface OperationalUserOption { id: number; name: string; role: "IT_STAFF" | "ADMINISTRATOR" }
+export interface OperationalUserPage { data: OperationalUserOption[]; meta: TicketList["meta"] }
+export interface ActionUser { id: number; name: string; role?: "IT_STAFF" | "ADMINISTRATOR" }
+export interface ActionTaken {
+  id: number;
+  ticketId: number;
+  status: ActionStatus;
+  description: string;
+  result: string | null;
+  followUpRequired: boolean;
+  followUpNote: string | null;
+  attachmentNotes: string | null;
+  actionAt: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  assignee: ActionUser;
+  performedBy: ActionUser | null;
+}
+export interface ActionPage { data: ActionTaken[]; meta: TicketList["meta"] }
+export interface TicketHistoryEntry {
+  id: string;
+  source: "ACTION" | "TICKET";
+  actionId: number | null;
+  kind: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  fieldName: string | null;
+  oldValue: unknown;
+  newValue: unknown;
+  reason: string | null;
+  confirmation: boolean | null;
+  actor: { id: number; name: string; role: string };
+  createdAt: string;
+}
+export interface TicketHistoryPage { data: TicketHistoryEntry[]; meta: TicketList["meta"] }
+
+export async function fetchOperationalUsers(params = new URLSearchParams()): Promise<OperationalUserPage> {
+  const response = await fetch(`${API_URL}/api/staff/operational-users?${params.toString()}`, { credentials: "include" });
+  const payload = await jsonResponse<OperationalUserPage>(response, "Unable to search active Staff and Administrators");
+  if (!payload.meta || !Array.isArray(payload.data)) throw new Error("Unexpected operational-user response");
+  return payload;
+}
+
+async function fetchActions(path: string): Promise<ActionPage> {
+  const response = await fetch(`${API_URL}${path}`, { credentials: "include" });
+  const payload = await jsonResponse<ActionPage>(response, "Unable to load Actions Taken");
+  if (!payload.meta || !Array.isArray(payload.data)) throw new Error("Unexpected Action response");
+  return payload;
+}
+
+export function fetchRequesterActions(ticketId: number, page = 1): Promise<ActionPage> {
+  return fetchActions(`/api/tickets/${ticketId}/actions?page=${page}&pageSize=20`);
+}
+
+export function fetchStaffActions(ticketId: number, page = 1): Promise<ActionPage> {
+  return fetchActions(`/api/staff/tickets/${ticketId}/actions?page=${page}&pageSize=20`);
+}
+
+export async function fetchStaffTicketHistory(ticketId: number, page = 1): Promise<TicketHistoryPage> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/history?page=${page}&pageSize=20`, { credentials: "include" });
+  const payload = await jsonResponse<TicketHistoryPage>(response, "Unable to load Ticket workflow history");
+  if (!payload.meta || !Array.isArray(payload.data)) throw new Error("Unexpected Ticket history response");
+  return payload;
+}
+
+export async function createStaffAction(ticketId: number, input: { expectedTicketVersion: number; assigneeId: number; description: string; followUpRequired: boolean; followUpNote: string | null; attachmentNotes: string | null }, idempotencyKey: string): Promise<ActionTaken> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/actions`, { method: "POST", headers: protectedHeaders({ "Content-Type": "application/json", "Idempotency-Key": idempotencyKey }), credentials: "include", body: JSON.stringify(input) });
+  const payload = await jsonResponse<{ data: ActionTaken }>(response, "Unable to create Action");
+  return payload.data;
+}
+
+export async function updateStaffAction(ticketId: number, actionId: number, input: { expectedTicketVersion: number; expectedActionVersion: number; assigneeId: number; description: string; followUpRequired: boolean; followUpNote: string | null; attachmentNotes: string | null }): Promise<ActionTaken> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/actions/${actionId}`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify(input) });
+  const payload = await jsonResponse<{ data: ActionTaken }>(response, "Unable to update Action");
+  return payload.data;
+}
+
+export async function transitionStaffAction(ticketId: number, actionId: number, input: { expectedTicketVersion: number; expectedActionVersion: number; status: "IN_PROGRESS" | "COMPLETED" | "CANCELLED"; result?: string; followUpRequired?: boolean; followUpNote?: string | null; cancellationReason?: string }): Promise<ActionTaken> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/actions/${actionId}/status`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify(input) });
+  const payload = await jsonResponse<{ data: ActionTaken }>(response, "Unable to update Action status");
+  return payload.data;
 }
 
 export async function fetchStaffTickets(params: URLSearchParams): Promise<StaffTicketList> {
@@ -202,23 +361,23 @@ export async function fetchStaffTicketDetail(ticketId: number): Promise<StaffTic
   return payload.data;
 }
 
-export async function claimStaffTicket(ticketId: number): Promise<void> {
-  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/claim`, { method: "POST", headers: protectedHeaders(), credentials: "include" });
+export async function claimStaffTicket(ticketId: number, expectedTicketVersion: number): Promise<void> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/claim`, { method: "POST", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ expectedTicketVersion }) });
   await jsonResponse(response, "Unable to claim Ticket");
 }
 
-export async function assignStaffTicket(ticketId: number, ownerId: number | null): Promise<void> {
-  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/assignment`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ ownerId }) });
+export async function assignStaffTicket(ticketId: number, ownerId: number | null, expectedTicketVersion: number): Promise<void> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/assignment`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ ownerId, expectedTicketVersion }) });
   await jsonResponse(response, "Unable to update Ticket owner");
 }
 
-export async function updateStaffTicketPriority(ticketId: number, itPriority: TicketPriority): Promise<void> {
-  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/priority`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ itPriority }) });
+export async function updateStaffTicketPriority(ticketId: number, itPriority: TicketPriority, expectedTicketVersion: number): Promise<void> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/priority`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ itPriority, expectedTicketVersion }) });
   await jsonResponse(response, "Unable to update IT Priority");
 }
 
-export async function updateStaffTicketStatus(ticketId: number, status: TicketStatus, options: { confirmation?: boolean; reason?: string } = {}): Promise<void> {
-  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/status`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ status, ...options }) });
+export async function updateStaffTicketStatus(ticketId: number, status: TicketStatus, expectedTicketVersion: number, options: { confirmation?: boolean; reason?: string } = {}): Promise<void> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}/status`, { method: "PATCH", headers: protectedHeaders({ "Content-Type": "application/json" }), credentials: "include", body: JSON.stringify({ status, expectedTicketVersion, ...options }) });
   await jsonResponse(response, "Unable to update Ticket status");
 }
 
