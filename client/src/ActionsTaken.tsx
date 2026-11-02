@@ -14,7 +14,7 @@ import {
 } from "./api.js";
 
 type Draft = { assigneeId: string; description: string; followUpRequired: boolean; followUpNote: string; attachmentNotes: string };
-type Props = { ticketId: number; role: "requester" | "staff"; ticketVersion?: number; ticketStatus?: string; focusActionId?: number; onTicketChanged?: () => void | Promise<void> };
+type Props = { ticketId: number; role: "requester" | "staff"; ticketVersion?: number; ticketStatus?: string; focusActionId?: number; mutationDisabled?: boolean; onMutationBusyChange?: (busy: boolean) => void; onTicketChanged?: () => void | Promise<void> };
 type ApiProblem = Error & { code?: string; fields?: Record<string, string> };
 type TransitionDialog = { action: ActionTakenData; kind: "complete" | "cancel" } | null;
 
@@ -35,7 +35,7 @@ function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString() : "Pending completion";
 }
 
-export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticketStatus = "OPEN", focusActionId, onTicketChanged }: Props) {
+export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticketStatus = "OPEN", focusActionId, mutationDisabled = false, onMutationBusyChange, onTicketChanged }: Props) {
   const isStaff = role === "staff";
   const canWrite = isStaff && !terminalTicketStatuses.has(ticketStatus);
   const [actionPage, setActionPage] = useState<ActionPage | null>(null);
@@ -246,7 +246,7 @@ export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticket
   }
 
   async function startAction(action: ActionTakenData) {
-    setBusy(true); setActionOperationError(""); setConflictRecoveryAvailable(false);
+    setBusy(true); onMutationBusyChange?.(true); setActionOperationError(""); setConflictRecoveryAvailable(false);
     try {
       await transitionStaffAction(ticketId, action.id, { expectedTicketVersion: ticketVersion, expectedActionVersion: action.version, status: "IN_PROGRESS" });
       await refreshAfterMutation();
@@ -255,7 +255,7 @@ export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticket
       const problem = error as ApiProblem;
       if (problem.code === "STALE_VERSION" || problem.code === "WRITE_CONFLICT") { setConflictRecoveryAvailable(true); await onTicketChanged?.(); }
       await Promise.all([loadActions(actionPageNumber), loadHistory(historyPageNumber)]);
-    } finally { setBusy(false); }
+    } finally { setBusy(false); onMutationBusyChange?.(false); }
   }
 
   async function submitForm(event: FormEvent) {
@@ -266,7 +266,7 @@ export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticket
     if (!draft.description.trim()) localErrors.description = "Action Description is required.";
     if (draft.followUpRequired && !draft.followUpNote.trim()) localErrors.followUpNote = "A note is required when follow-up is selected.";
     if (Object.keys(localErrors).length) { setFormErrors(localErrors); return; }
-    setBusy(true); setFormErrors({}); setFormError(""); setActionOperationError(""); setConflictRecoveryAvailable(false);
+    setBusy(true); onMutationBusyChange?.(true); setFormErrors({}); setFormError(""); setActionOperationError(""); setConflictRecoveryAvailable(false);
     try {
       if (editingActionId === null) {
         const retryKey = idempotencyKey || globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
@@ -285,7 +285,7 @@ export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticket
       const problem = error as ApiProblem;
       if (problem.code === "STALE_VERSION" || problem.code === "WRITE_CONFLICT") { setConflictRecoveryAvailable(true); await onTicketChanged?.(); }
       await Promise.all([loadActions(actionPageNumber), loadHistory(historyPageNumber)]);
-    } finally { setBusy(false); }
+    } finally { setBusy(false); onMutationBusyChange?.(false); }
   }
 
   function openTransition(event: MouseEvent<HTMLButtonElement>, action: ActionTakenData, kind: "complete" | "cancel") {
@@ -314,7 +314,7 @@ export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticket
     if (transitionDialog.kind === "complete" && transitionFollowUpRequired && !transitionFollowUpNote.trim()) fields.followUpNote = "A note is required when follow-up is selected.";
     if (transitionDialog.kind === "cancel" && !transitionReason.trim()) fields.cancellationReason = "A cancellation reason is required.";
     if (Object.keys(fields).length) { setTransitionErrors(fields); return; }
-    setBusy(true); setTransitionErrors({}); setTransitionError(""); setActionOperationError(""); setConflictRecoveryAvailable(false);
+    setBusy(true); onMutationBusyChange?.(true); setTransitionErrors({}); setTransitionError(""); setActionOperationError(""); setConflictRecoveryAvailable(false);
     try {
       const { action, kind } = transitionDialog;
       await transitionStaffAction(ticketId, action.id, {
@@ -331,7 +331,7 @@ export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticket
       const problem = error as ApiProblem;
       if (problem.code === "STALE_VERSION" || problem.code === "WRITE_CONFLICT") { setConflictRecoveryAvailable(true); await onTicketChanged?.(); }
       await Promise.all([loadActions(actionPageNumber), loadHistory(historyPageNumber)]);
-    } finally { setBusy(false); }
+    } finally { setBusy(false); onMutationBusyChange?.(false); }
   }
 
   function handleFormKeyDown(event: KeyboardEvent<HTMLFormElement>) {
@@ -344,7 +344,7 @@ export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticket
   return <section className={`detail-section actions-taken${isStaff ? " actions-taken-staff" : ""}`} aria-labelledby={`actions-heading-${ticketId}`}>
     <div className="list-header">
       <div><h3 id={`actions-heading-${ticketId}`} tabIndex={-1}>{actionsHeading}</h3><p className="helper-text">Work records and results associated with this Ticket.</p></div>
-      {canWrite && <button id={`add-action-${ticketId}`} type="button" className="btn btn-primary-green" disabled={busy} onClick={openCreateForm}>Add Action</button>}
+      {canWrite && <button id={`add-action-${ticketId}`} type="button" className="btn btn-primary-green" disabled={busy || mutationDisabled} onClick={openCreateForm}>Add Action</button>}
     </div>
 
     {actionState === "loading" && <div className="state-callout state-info" role="status">Loading Actions Taken...</div>}
@@ -366,10 +366,10 @@ export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticket
         {action.cancellationReason && <div><dt>Cancellation reason</dt><dd className="preserve-text">{action.cancellationReason}</dd></div>}
       </dl>
       {canWrite && <div className="action-controls" aria-label={`Controls for Action ${action.id}`}>
-        {(action.status === "PLANNED" || action.status === "IN_PROGRESS") && <button type="button" className="btn btn-secondary-green" disabled={busy} onClick={(event) => openEditForm(event, action)}>Edit or assign</button>}
-        {action.status === "PLANNED" && <button type="button" className="btn btn-secondary-green" disabled={busy} onClick={() => void startAction(action)}>Start</button>}
-        {(action.status === "PLANNED" || action.status === "IN_PROGRESS") && <button type="button" className="btn btn-secondary-green" disabled={busy} onClick={(event) => openTransition(event, action, "complete")}>Complete</button>}
-        {(action.status === "PLANNED" || action.status === "IN_PROGRESS") && <button type="button" className="btn btn-secondary-green" disabled={busy} onClick={(event) => openTransition(event, action, "cancel")}>Cancel Action</button>}
+        {(action.status === "PLANNED" || action.status === "IN_PROGRESS") && <button type="button" className="btn btn-secondary-green" disabled={busy || mutationDisabled} onClick={(event) => openEditForm(event, action)}>Edit or assign</button>}
+        {action.status === "PLANNED" && <button type="button" className="btn btn-secondary-green" disabled={busy || mutationDisabled} onClick={() => void startAction(action)}>Start</button>}
+        {(action.status === "PLANNED" || action.status === "IN_PROGRESS") && <button type="button" className="btn btn-secondary-green" disabled={busy || mutationDisabled} onClick={(event) => openTransition(event, action, "complete")}>Complete</button>}
+        {(action.status === "PLANNED" || action.status === "IN_PROGRESS") && <button type="button" className="btn btn-secondary-green" disabled={busy || mutationDisabled} onClick={(event) => openTransition(event, action, "cancel")}>Cancel Action</button>}
         {(action.status === "COMPLETED" || action.status === "CANCELLED") && <p className="helper-text">This Action is terminal; its recorded history is read-only.</p>}
       </div>}
     </li>)}</ol>}
@@ -406,7 +406,7 @@ export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticket
       <textarea id={`action-attachment-notes-${ticketId}`} value={draft.attachmentNotes} maxLength={2000} onChange={(event) => updateDraft("attachmentNotes", event.target.value)} aria-invalid={Boolean(formErrors.attachmentNotes)} aria-describedby={formErrors.attachmentNotes ? `action-attachment-notes-error-${ticketId}` : undefined} />
       {formErrors.attachmentNotes && <span id={`action-attachment-notes-error-${ticketId}`} className="field-error">{formErrors.attachmentNotes}</span>}
       <p className="helper-text">A new Action starts as Planned. Performer and Action date/time are recorded by the server when it is completed.</p>
-        <div className="action-controls"><button type="submit" className="btn btn-primary-green" disabled={busy || directoryState === "loading"}>{busy ? "Saving..." : editingActionId === null ? "Save Action" : "Save changes"}</button><button type="button" className="btn btn-secondary-green" disabled={busy} onClick={requestCloseForm}>Cancel form</button></div>
+        <div className="action-controls"><button type="submit" className="btn btn-primary-green" disabled={busy || mutationDisabled || directoryState === "loading"}>{busy ? "Saving..." : editingActionId === null ? "Save Action" : "Save changes"}</button><button type="button" className="btn btn-secondary-green" disabled={busy} onClick={requestCloseForm}>Cancel form</button></div>
     </form>}
 
     {isStaff && <section className="workflow-history" aria-labelledby={`history-heading-${ticketId}`}>
@@ -430,7 +430,7 @@ export default function ActionsTaken({ ticketId, role, ticketVersion = 0, ticket
           <label className="checkbox-label"><input type="checkbox" checked={transitionFollowUpRequired} onChange={(event) => setTransitionFollowUpRequired(event.target.checked)} /> Follow-up required?</label>
           {transitionFollowUpRequired && <><label htmlFor={`action-complete-followup-${ticketId}`}>Follow-up Note <span aria-hidden="true">*</span></label><textarea id={`action-complete-followup-${ticketId}`} value={transitionFollowUpNote} maxLength={2000} onChange={(event) => { setTransitionFollowUpNote(event.target.value); setTransitionErrors((current) => ({ ...current, followUpNote: "" })); }} aria-invalid={Boolean(transitionErrors.followUpNote)} aria-describedby={transitionErrors.followUpNote ? `action-complete-followup-error-${ticketId}` : undefined} required />{transitionErrors.followUpNote && <span id={`action-complete-followup-error-${ticketId}`} className="field-error">{transitionErrors.followUpNote}</span>}</>}
         </> : <><label htmlFor={`action-cancel-reason-${ticketId}`}>Cancellation reason <span aria-hidden="true">*</span></label><textarea id={`action-cancel-reason-${ticketId}`} value={transitionReason} maxLength={1000} onChange={(event) => { setTransitionReason(event.target.value); setTransitionErrors((current) => ({ ...current, cancellationReason: "" })); }} aria-invalid={Boolean(transitionErrors.cancellationReason)} aria-describedby={transitionErrors.cancellationReason ? `action-cancel-reason-error-${ticketId}` : undefined} required />{transitionErrors.cancellationReason && <span id={`action-cancel-reason-error-${ticketId}`} className="field-error">{transitionErrors.cancellationReason}</span>}</>}
-        <div className="action-controls"><button type="submit" className="btn btn-primary-green" disabled={busy}>{busy ? "Saving..." : transitionDialog.kind === "complete" ? "Confirm completion" : "Confirm cancellation"}</button><button type="button" className="btn btn-secondary-green" disabled={busy} onClick={closeTransitionDialog}>Close</button></div>
+        <div className="action-controls"><button type="submit" className="btn btn-primary-green" disabled={busy || mutationDisabled}>{busy ? "Saving..." : transitionDialog.kind === "complete" ? "Confirm completion" : "Confirm cancellation"}</button><button type="button" className="btn btn-secondary-green" disabled={busy} onClick={closeTransitionDialog}>Close</button></div>
       </form>
     </div></div>}
   </section>;

@@ -35,7 +35,7 @@ test("an initial password blocks navigation until a valid replacement is saved",
   await page.getByLabel("Role", { exact: true }).selectOption("IT_STAFF");
   await page.getByLabel("Initial password").fill("local-only-password");
   await page.getByRole("button", { name: "Create User", exact: true }).last().click();
-  await expect(page.getByRole("status")).toContainText("User created");
+  await expect(page.getByRole("status").filter({ hasText: "User created" })).toBeVisible();
   await signOut(page);
   await page.goto("/");
   await page.getByLabel("Email").fill(email);

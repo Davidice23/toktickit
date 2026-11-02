@@ -118,9 +118,10 @@ describe("Lab 4 Actions Taken UI", () => {
       return currentAction;
     });
     const user = userEvent.setup();
+    const mutationBusyChanges: boolean[] = [];
     function Host() {
       const [version, setVersion] = useState(4);
-      return <ActionsTaken ticketId={18} role="staff" ticketVersion={version} ticketStatus="OPEN" onTicketChanged={() => setVersion((value) => value + 1)} />;
+      return <ActionsTaken ticketId={18} role="staff" ticketVersion={version} ticketStatus="OPEN" onMutationBusyChange={(busy) => mutationBusyChanges.push(busy)} onTicketChanged={() => setVersion((value) => value + 1)} />;
     }
     render(<Host />);
 
@@ -154,6 +155,7 @@ describe("Lab 4 Actions Taken UI", () => {
     const completedActionCard = screen.getByRole("listitem");
     await waitFor(() => expect(completedActionCard).toHaveFocus());
     expect(fetchActions).toHaveBeenCalled();
+    expect(mutationBusyChanges).toEqual([true, false, true, false, true, false]);
   });
 
   it("keeps a failed form draft and associates server validation with its field", async () => {
