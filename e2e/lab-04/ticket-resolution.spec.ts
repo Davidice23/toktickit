@@ -134,6 +134,7 @@ test("requester resolution indication stays advisory and staff resolve only afte
   await page.getByLabel("Result").fill(result);
   await page.getByRole("button", { name: "Confirm completion" }).click();
   await expect(actionCard.getByText(result)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add Action" }).first()).toBeEnabled();
 
   await page.getByRole("button", { name: "Update Status" }).click();
   await expect(page.locator(".detail-grid")).toContainText("RESOLVED");

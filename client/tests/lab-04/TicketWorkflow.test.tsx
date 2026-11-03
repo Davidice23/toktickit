@@ -65,6 +65,45 @@ describe("Lab 4 Ticket workflow UI", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Complete an Action with a Result");
   });
 
+  it("locks Ticket controls until an Action write and workflow-version refresh finish", async () => {
+    let currentTicket: api.StaffTicketDetail = { ...ticket, currentStatus: "IN_PROGRESS" };
+    let currentAction: api.ActionTaken = {
+      id: 41, ticketId: 18, status: "IN_PROGRESS", description: "Complete verified work", result: null,
+      followUpRequired: false, followUpNote: null, attachmentNotes: null, actionAt: null, cancelledAt: null,
+      cancellationReason: null, version: 1, createdAt: "2026-11-01T08:00:00.000Z", updatedAt: "2026-11-01T08:00:00.000Z",
+      assignee: { id: 7, name: "Staff User", role: "IT_STAFF" }, performedBy: null,
+    };
+    let finishTransition!: (action: api.ActionTaken) => void;
+    vi.spyOn(api, "fetchStaffTicketDetail").mockImplementation(async () => currentTicket);
+    vi.spyOn(api, "fetchStaffActions").mockImplementation(async () => ({ data: [currentAction], meta: { ...pageMeta, totalItems: 1, totalPages: 1 } }));
+    vi.spyOn(api, "fetchStaffTicketHistory").mockResolvedValue({ data: [], meta: pageMeta });
+    vi.spyOn(api, "fetchOperationalUsers").mockResolvedValue({ data: [], meta: pageMeta });
+    vi.spyOn(api, "transitionStaffAction").mockImplementation(async (_ticketId, _actionId, input) => {
+      currentTicket = { ...currentTicket, workflowVersion: currentTicket.workflowVersion + 1 };
+      currentAction = { ...currentAction, status: input.status, version: currentAction.version + 1, result: input.result ?? null };
+      return new Promise((resolve) => { finishTransition = () => resolve(currentAction); });
+    });
+    const updateStatus = vi.spyOn(api, "updateStaffTicketStatus").mockImplementation(async (_ticketId, status) => {
+      currentTicket = { ...currentTicket, currentStatus: status, workflowVersion: currentTicket.workflowVersion + 1 };
+    });
+    const user = userEvent.setup();
+    render(<StaffTicketDetail ticketId={18} onBack={() => undefined} />);
+
+    await screen.findByRole("heading", { name: "TKT-000018" });
+    await user.selectOptions(screen.getByLabelText("Next status"), "RESOLVED");
+    await user.click(await screen.findByRole("button", { name: "Complete" }));
+    await user.type(screen.getByLabelText(/Result/), "Diagnostics verified");
+    const completion = user.click(screen.getByRole("button", { name: "Confirm completion" }));
+    expect(await screen.findByText("Saving an Action and refreshing the Ticket. Other Ticket updates are temporarily unavailable.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Update Status" })).toBeDisabled();
+
+    finishTransition(currentAction);
+    await completion;
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add Action" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Update Status" }));
+    await waitFor(() => expect(updateStatus).toHaveBeenCalledWith(18, "RESOLVED", 6, { confirmation: false, reason: "" }));
+  });
+
   it("shows a safe not-found state and can retry loading the Ticket", async () => {
     const loadTicket = vi.spyOn(api, "fetchStaffTicketDetail")
       .mockRejectedValueOnce(Object.assign(new Error("Ticket not found"), { code: "TICKET_NOT_FOUND", status: 404 }))
